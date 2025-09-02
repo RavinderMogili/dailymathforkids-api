@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Daily Math for Kids – API</title>
+  <style>
+    body{font:16px/1.5 system-ui, Arial; max-width:720px; margin:40px auto; padding:0 16px;}
+    code{background:#f5f5f5; padding:2px 6px; border-radius:4px;}
+  </style>
+</head>
+<body>
+  <h1>Daily Math for Kids – API</h1>
+  <p>This project serves serverless API endpoints for the Daily Math site.</p>
+  <h2>Quick test</h2>
+  <p><a href="/api/hello"><code>/api/hello</code></a> – simple health check</p>
+  <h2>Endpoints</h2>
+  <ul>
+    <li><code>POST /api/register</code> – { "nickname": "Ravi" } → { userId, nickname }</li>
+    <li><code>GET /api/status?userId=&lt;uuid&gt;&amp;quizId=YYYY-MM-DD</code> → { done, score }</li>
+    <li><code>POST /api/submit</code> – { userId, quizId, answers: [..5..] } → { score, outOf }</li>
+  </ul>
+</body>
+</html>
