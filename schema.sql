@@ -21,9 +21,13 @@ create table if not exists submissions (
   quiz_id text references quizzes(id),
   score int not null,
   points_earned int not null default 0,
+  time_seconds int default null,
   created_at timestamptz default now(),
   unique (user_id, quiz_id)
 );
+
+-- Run once to add column to existing tables:
+-- ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_seconds int default null;
 
 -- Leaderboard view
 create or replace view leaderboard as

@@ -26,7 +26,7 @@ export default async function handler(req, res) {
       .select('quiz_id, score, points_earned, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(30);
+      .limit(90);
 
     if (sErr) return res.status(400).json({ error: sErr.message });
 
