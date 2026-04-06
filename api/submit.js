@@ -37,11 +37,15 @@ export default async function handler(req, res) {
     if (qErr || !quiz) return res.status(400).json({ error: 'quiz not found' });
 
     const correct = quiz.answers || [];
-    const score = answers.filter((a, i) => {
-      const got = parseFloat(String(a ?? '').trim());
-      const exp = parseFloat(String(correct[i] ?? '').trim());
-      return !isNaN(got) && !isNaN(exp) && got === exp;
-    }).length;
+    const results = answers.map((a, i) => {
+      const got = String(a ?? '').trim().toLowerCase();
+      const exp = String(correct[i] ?? '').trim().toLowerCase();
+      const isCorrect = got === exp || (
+        !isNaN(parseFloat(got)) && !isNaN(parseFloat(exp)) && parseFloat(got) === parseFloat(exp)
+      );
+      return { question: i + 1, correct: isCorrect, expected: correct[i] || '', given: String(a ?? '').trim() };
+    });
+    const score = results.filter(r => r.correct).length;
     const points_earned = calcPoints(score, correct.length);
 
     const { error: sErr } = await sb.from('submissions')
@@ -55,7 +59,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: sErr.message });
     }
 
-    return res.status(200).json({ score, outOf: correct.length, points_earned, already: false });
+    return res.status(200).json({ score, outOf: correct.length, points_earned, already: false, results });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
