@@ -16,10 +16,41 @@ export default async function handler(req, res) {
 
   const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
+  // GET ?userId=X — return the user's group
   // GET ?invite_code=ABC123 — return group progress
   if (req.method === 'GET') {
-    const { invite_code } = req.query;
-    if (!invite_code) return res.status(400).json({ error: 'invite_code required' });
+    const { invite_code, userId } = req.query;
+
+    if (userId) {
+      const { data: membership } = await sb
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', userId)
+        .limit(1)
+        .single();
+
+      if (!membership) return res.status(200).json({ group: null });
+
+      const { data: group } = await sb
+        .from('groups')
+        .select('id, name, invite_code')
+        .eq('id', membership.group_id)
+        .single();
+
+      if (!group) return res.status(200).json({ group: null });
+
+      const { data: progress } = await sb
+        .from('group_progress')
+        .select('*')
+        .eq('group_id', group.id)
+        .single();
+
+      return res.status(200).json({
+        group: { groupId: group.id, groupName: group.name, invite_code: group.invite_code, ...(progress || {}) }
+      });
+    }
+
+    if (!invite_code) return res.status(400).json({ error: 'invite_code or userId required' });
 
     const { data, error } = await sb
       .from('group_progress')
