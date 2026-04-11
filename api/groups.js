@@ -45,8 +45,41 @@ export default async function handler(req, res) {
         .eq('group_id', group.id)
         .single();
 
+      // Fetch members with their stats
+      const { data: members } = await sb
+        .from('group_members')
+        .select('user_id')
+        .eq('group_id', group.id);
+
+      let memberList = [];
+      if (members && members.length > 0) {
+        const userIds = members.map(m => m.user_id);
+        const { data: users } = await sb
+          .from('users')
+          .select('id, nickname, grade')
+          .in('id', userIds);
+
+        const { data: subs } = await sb
+          .from('submissions')
+          .select('user_id, points_earned, score')
+          .in('user_id', userIds);
+
+        const userMap = {};
+        (users || []).forEach(u => {
+          userMap[u.id] = { nickname: u.nickname, grade: u.grade, totalPoints: 0, quizzes: 0, perfect: 0 };
+        });
+        (subs || []).forEach(s => {
+          if (userMap[s.user_id]) {
+            userMap[s.user_id].totalPoints += (s.points_earned || 0);
+            userMap[s.user_id].quizzes += 1;
+            if (s.score === 5) userMap[s.user_id].perfect += 1;
+          }
+        });
+        memberList = Object.values(userMap).sort((a, b) => b.totalPoints - a.totalPoints);
+      }
+
       return res.status(200).json({
-        group: { groupId: group.id, groupName: group.name, invite_code: group.invite_code, ...(progress || {}) }
+        group: { groupId: group.id, groupName: group.name, invite_code: group.invite_code, ...(progress || {}), members: memberList }
       });
     }
 
