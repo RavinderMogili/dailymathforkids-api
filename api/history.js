@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 
     const { data: subs, error: sErr } = await sb
       .from('submissions')
-      .select('quiz_id, score, points_earned, created_at')
+      .select('quiz_id, score, points_earned, time_seconds, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(90);
@@ -41,6 +41,7 @@ export default async function handler(req, res) {
         quizId:       s.quiz_id,
         score:        s.score,
         pointsEarned: s.points_earned,
+        timeSeconds:  s.time_seconds || null,
         date:         s.created_at ? s.created_at.slice(0, 10) : null,
       })),
     });
