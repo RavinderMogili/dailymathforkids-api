@@ -32,11 +32,24 @@ export default async function handler(req, res) {
 
     const totalPoints = (subs || []).reduce((sum, s) => sum + (s.points_earned || 0), 0);
 
+    // Get kid's rank among same-grade students
+    const { data: gradeBoard } = await sb
+      .from('leaderboard')
+      .select('nickname, total_points, rank')
+      .eq('grade', user.grade)
+      .order('rank', { ascending: true });
+
+    const gradeTotal = (gradeBoard || []).length;
+    const myEntry = (gradeBoard || []).find(r => r.nickname === user.nickname);
+    const myGradeRank = myEntry ? (gradeBoard || []).indexOf(myEntry) + 1 : null;
+
     return res.status(200).json({
       nickname:    user.nickname,
       grade:       user.grade,
       school:      user.school,
       totalPoints,
+      gradeRank:   myGradeRank,
+      gradeTotal,
       submissions: (subs || []).map(s => ({
         quizId:       s.quiz_id,
         score:        s.score,
