@@ -84,6 +84,19 @@ left join group_members gm on gm.group_id = g.id
 left join submissions   s  on s.user_id   = gm.user_id
 group by g.id, g.name, g.invite_code;
 
+-- Practice mode submissions
+create table if not exists practice_submissions (
+  id bigserial primary key,
+  user_id uuid references users(id) on delete cascade,
+  correct int not null default 0,
+  total int not null default 0,
+  difficulty text default 'easy',
+  topics text[] default '{}',
+  points_earned numeric(4,1) default 0,
+  time_seconds int default null,
+  created_at timestamptz default now()
+);
+
 create or replace view weekly_progress as
 select
   user_id,

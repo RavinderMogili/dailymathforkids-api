@@ -43,6 +43,18 @@ export default async function handler(req, res) {
     const myEntry = (gradeBoard || []).find(r => r.nickname === user.nickname);
     const myGradeRank = myEntry ? (gradeBoard || []).indexOf(myEntry) + 1 : null;
 
+    // Get practice stats
+    const { data: practiceSubs } = await sb
+      .from('practice_submissions')
+      .select('correct, total, difficulty, points_earned, time_seconds, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    const practicePoints = (practiceSubs || []).reduce((sum, p) => sum + (parseFloat(p.points_earned) || 0), 0);
+    const practiceTotal = (practiceSubs || []).reduce((sum, p) => sum + (p.total || 0), 0);
+    const practiceCorrect = (practiceSubs || []).reduce((sum, p) => sum + (p.correct || 0), 0);
+
     return res.status(200).json({
       nickname:    user.nickname,
       grade:       user.grade,
@@ -50,6 +62,12 @@ export default async function handler(req, res) {
       totalPoints,
       gradeRank:   myGradeRank,
       gradeTotal,
+      practiceStats: {
+        sessions: (practiceSubs || []).length,
+        totalQuestions: practiceTotal,
+        totalCorrect: practiceCorrect,
+        pointsEarned: Math.round(practicePoints * 10) / 10,
+      },
       submissions: (subs || []).map(s => ({
         quizId:       s.quiz_id,
         score:        s.score,
