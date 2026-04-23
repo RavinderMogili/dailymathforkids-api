@@ -14,9 +14,6 @@ export default async function handler(req, res) {
     const { count: totalUsers } = await sb
       .from('users').select('*', { count: 'exact', head: true });
 
-    // Users by grade
-    const { data: gradeRows } = await sb.rpc('get_users_by_grade').catch(() => ({ data: null }));
-
     // Total quiz submissions
     const { count: totalQuizSubs } = await sb
       .from('submissions').select('*', { count: 'exact', head: true });
