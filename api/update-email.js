@@ -10,11 +10,9 @@ export default async function handler(req, res) {
   try {
     const { userId, parent_email } = req.body || {};
     if (!userId) return res.status(400).json({ error: 'userId required' });
-    if (!parent_email) return res.status(400).json({ error: 'parent_email required' });
-
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
     const { error } = await sb.from('users')
-      .update({ parent_email })
+      .update({ parent_email: parent_email || null })
       .eq('id', userId);
 
     if (error) return res.status(400).json({ error: error.message });
