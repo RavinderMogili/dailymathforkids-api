@@ -8,7 +8,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4"
+    "@supabase/supabase-js": "^2.45.4",
+    "resend": "^6.12.2"
   },
   "devDependencies": {
     "@jest/globals": "^30.3.0",
