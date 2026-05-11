@@ -60,6 +60,11 @@ export default async function handler(req, res) {
       .order('created_at', { ascending: true });
     const dailyPractice = bucketByDay(recentPracticeSubs || []);
 
+    // Users with parent email
+    const { count: parentEmailCount } = await sb
+      .from('users').select('*', { count: 'exact', head: true })
+      .not('parent_email', 'is', null);
+
     // Average quiz score
     const { data: avgData } = await sb
       .from('submissions').select('score');
@@ -86,6 +91,7 @@ export default async function handler(req, res) {
       quizLast7Days: quizLast7 || 0,
       practiceLast7Days: practiceLast7 || 0,
       activeUsersLast7Days: activeIds.size,
+      parentEmailCount: parentEmailCount || 0,
       avgQuizScore: parseFloat(avgScore),
       dailyQuiz,
       dailyPractice,

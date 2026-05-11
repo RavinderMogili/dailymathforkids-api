@@ -82,6 +82,31 @@ async function sendEmailForUser(sb, resend, user) {
     .eq('user_id', user.id);
   const totalPoints = (allSubs || []).reduce((s, r) => s + (r.points_earned || 0), 0);
 
+  // Streak calculation: count consecutive active days ending at today (or most recent day)
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
+  const { data: recentQuiz } = await sb
+    .from('submissions').select('created_at').eq('user_id', user.id).gte('created_at', thirtyDaysAgo);
+  const { data: recentPractice } = await sb
+    .from('practice_submissions').select('created_at').eq('user_id', user.id).gte('created_at', thirtyDaysAgo);
+  const activeDays = new Set();
+  for (const r of [...(recentQuiz || []), ...(recentPractice || [])]) {
+    activeDays.add(r.created_at.slice(0, 10));
+  }
+  // Walk backwards from today counting consecutive active days
+  let streak = 0;
+  let lastActiveDate = null;
+  for (let i = 0; i <= 30; i++) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    if (activeDays.has(d)) {
+      streak++;
+      if (!lastActiveDate) lastActiveDate = d;
+    } else if (streak > 0) break; // streak broken
+  }
+  // Days since last activity
+  const daysSinceActive = lastActiveDate
+    ? Math.floor((Date.now() - new Date(lastActiveDate + 'T00:00:00Z').getTime()) / 86400000)
+    : 999;
+
   // Calculate weekly stats
   const quizzes = quizSubs || [];
   const practices = practiceSubs || [];
@@ -100,7 +125,9 @@ async function sendEmailForUser(sb, resend, user) {
   if (totalSessions === 0) {
     headline = `${user.nickname} didn't practice this week`;
     emoji = '📢';
-    encouragement = `A little practice each day goes a long way! Even 5 minutes helps build math confidence. Maybe try a quick practice session together today?`;
+    encouragement = daysSinceActive <= 3
+      ? `${user.nickname} was active ${daysSinceActive} day${daysSinceActive === 1 ? '' : 's'} ago — a quick session today keeps the streak alive!`
+      : `A little practice each day goes a long way! Even 5 minutes helps build math confidence. Maybe try a quick practice session together today?`;
   } else if (totalSessions >= 5) {
     headline = `${user.nickname} had an amazing week!`;
     emoji = '🌟';
@@ -110,6 +137,25 @@ async function sendEmailForUser(sb, resend, user) {
     emoji = '📊';
     encouragement = `Great job showing up! Consistency is key — even a few sessions each week make a big difference.`;
   }
+
+  // Build streak and rank context
+  let streakHtml = '';
+  if (streak > 0) {
+    streakHtml = `
+    <div style="background:#fff7ed;border-radius:10px;padding:14px;margin-bottom:16px;text-align:center">
+      <span style="font-size:1.4rem">🔥</span>
+      <strong style="color:#c2410c;font-size:1.1rem">${streak}-day streak!</strong>
+      <span style="color:#9a3412;font-size:.85rem"> — Keep it going!</span>
+    </div>`;
+  } else if (daysSinceActive <= 7 && daysSinceActive > 0) {
+    streakHtml = `
+    <div style="background:#fef2f2;border-radius:10px;padding:14px;margin-bottom:16px;text-align:center">
+      <span style="font-size:1.4rem">⚠️</span>
+      <strong style="color:#dc2626;font-size:.95rem">Streak lost!</strong>
+      <span style="color:#991b1b;font-size:.85rem"> Last active ${daysSinceActive} day${daysSinceActive === 1 ? '' : 's'} ago. Start a new one today!</span>
+    </div>`;
+  }
+
 
   // Build quiz rows
   let quizRows = '';
@@ -164,9 +210,11 @@ async function sendEmailForUser(sb, resend, user) {
     </div>
 
     <!-- Encouragement -->
-    <p style="background:#fefce8;border-radius:10px;padding:14px;font-size:.9rem;color:#854d0e;margin:0 0 20px">
+    <p style="background:#fefce8;border-radius:10px;padding:14px;font-size:.9rem;color:#854d0e;margin:0 0 16px">
       💡 ${encouragement}
     </p>
+
+    ${streakHtml}
 
     ${quizCount > 0 ? `
     <!-- Quiz table -->
