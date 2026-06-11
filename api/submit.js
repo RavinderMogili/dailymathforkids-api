@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { checkPrizeMilestone } from './_prize-check.js';
 
 function calcPoints(score, outOf) {
   let pts = score;
@@ -58,6 +59,9 @@ export default async function handler(req, res) {
       }
       return res.status(400).json({ error: sErr.message });
     }
+
+    // Check prize milestone in background (non-blocking)
+    checkPrizeMilestone(sb, userId).catch(() => {});
 
     return res.status(200).json({ score, outOf: correct.length, points_earned, already: false, results });
   } catch (e) {

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { checkPrizeMilestone } from './_prize-check.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,6 +31,9 @@ export default async function handler(req, res) {
     // Add practice points to user's total in submissions-independent way
     // We rely on the leaderboard view summing submissions only, so practice points
     // are tracked separately and shown on profile but don't affect leaderboard rank.
+
+    // Check prize milestone in background (non-blocking)
+    checkPrizeMilestone(sb, userId).catch(() => {});
 
     return res.status(200).json({ ok: true, pointsEarned: pointsEarned || 0 });
   } catch (e) {
