@@ -30,7 +30,14 @@ export default async function handler(req, res) {
 
     if (sErr) return res.status(400).json({ error: sErr.message });
 
-    const totalPoints = (subs || []).reduce((sum, s) => sum + (s.points_earned || 0), 0);
+    const quizPoints = (subs || []).reduce((sum, s) => sum + (s.points_earned || 0), 0);
+
+    // Also get ALL quiz submissions for accurate total (subs is limited to 90 for display)
+    const { data: allQuizPts } = await sb
+      .from('submissions')
+      .select('points_earned')
+      .eq('user_id', userId);
+    const totalQuizPoints = (allQuizPts || []).reduce((sum, s) => sum + (s.points_earned || 0), 0);
 
     // Get kid's rank among same-grade students
     const { data: gradeBoard } = await sb
@@ -59,7 +66,8 @@ export default async function handler(req, res) {
       nickname:    user.nickname,
       grade:       user.grade,
       school:      user.school,
-      totalPoints,
+      totalPoints: totalQuizPoints + Math.round(practicePoints),
+      quizPoints: totalQuizPoints,
       gradeRank:   myGradeRank,
       gradeTotal,
       practiceStats: {
