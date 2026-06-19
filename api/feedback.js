@@ -22,7 +22,6 @@ export default async function handler(req, res) {
 
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
-    // Save to database
     const { error } = await sb.from('feedback').insert({
       user_id: userId || null,
       category,
@@ -38,28 +37,30 @@ export default async function handler(req, res) {
     // Email notification to admin
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey) {
-      const resend = new Resend(resendKey);
-      const categoryEmoji = { bug: '🐛', suggestion: '💡', question: '❓', wrong_answer: '❌' };
-      const categoryLabel = { bug: 'Bug Report', suggestion: 'Suggestion', question: 'Question', wrong_answer: 'Wrong Answer Report' };
+      try {
+        const resend = new Resend(resendKey);
+        const categoryEmoji = { bug: '🐛', suggestion: '💡', question: '❓', wrong_answer: '❌' };
+        const categoryLabel = { bug: 'Bug Report', suggestion: 'Suggestion', question: 'Question', wrong_answer: 'Wrong Answer Report' };
 
-      await resend.emails.send({
-        from: 'Daily Math for Kids <feedback@dailymathforkids.com>',
-        to: ADMIN_EMAIL,
-        subject: `${categoryEmoji[category]} ${categoryLabel[category]} — Daily Math for Kids`,
-        html: `
-          <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:20px">
-            <h2 style="color:#2563eb">${categoryEmoji[category]} New ${categoryLabel[category]}</h2>
-            <div style="background:#f8fafc;border-radius:12px;padding:16px;margin:12px 0">
-              <p style="margin:0;white-space:pre-wrap">${message.trim()}</p>
+        await resend.emails.send({
+          from: 'Daily Math for Kids <feedback@dailymathforkids.com>',
+          to: ADMIN_EMAIL,
+          subject: `${categoryEmoji[category]} ${categoryLabel[category]} — Daily Math for Kids`,
+          html: `
+            <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:20px">
+              <h2 style="color:#2563eb">${categoryEmoji[category]} New ${categoryLabel[category]}</h2>
+              <div style="background:#f8fafc;border-radius:12px;padding:16px;margin:12px 0">
+                <p style="margin:0;white-space:pre-wrap">${message.trim()}</p>
+              </div>
+              ${email ? `<p><strong>Reply to:</strong> <a href="mailto:${email}">${email}</a></p>` : ''}
+              ${pageUrl ? `<p><strong>Page:</strong> ${pageUrl}</p>` : ''}
+              ${quizId ? `<p><strong>Quiz:</strong> ${quizId}${questionNum ? ` — Question #${questionNum}` : ''}</p>` : ''}
+              <hr style="margin:20px 0;border:none;border-top:1px solid #eee"/>
+              <p style="font-size:.85rem;color:#666">Submitted via the feedback widget on Daily Math for Kids.</p>
             </div>
-            ${email ? `<p><strong>Reply to:</strong> <a href="mailto:${email}">${email}</a></p>` : ''}
-            ${pageUrl ? `<p><strong>Page:</strong> ${pageUrl}</p>` : ''}
-            ${quizId ? `<p><strong>Quiz:</strong> ${quizId}${questionNum ? ` — Question #${questionNum}` : ''}</p>` : ''}
-            <hr style="margin:20px 0;border:none;border-top:1px solid #eee"/>
-            <p style="font-size:.85rem;color:#666">Submitted via the feedback widget on Daily Math for Kids.</p>
-          </div>
-        `,
-      }).catch(() => {});
+          `,
+        });
+      } catch { /* email is best-effort */ }
     }
 
     return res.status(200).json({ ok: true });
