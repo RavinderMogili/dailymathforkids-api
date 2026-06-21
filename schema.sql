@@ -5,6 +5,7 @@ create table if not exists users (
   school text,
   city text default 'Moncton',
   parent_email text,
+  pin_hash text,
   created_at timestamptz default now()
 );
 
@@ -26,8 +27,9 @@ create table if not exists submissions (
   unique (user_id, quiz_id)
 );
 
--- Run once to add column to existing tables:
+-- Run once to add columns to existing tables:
 -- ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_seconds int default null;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_hash text;
 
 -- Leaderboard view
 create or replace view leaderboard as
