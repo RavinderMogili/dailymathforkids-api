@@ -67,6 +67,7 @@ export default async function handler(req, res) {
       grade:       user.grade,
       school:      user.school,
       hasPin:      !!user.pin_hash,
+      securityQuestion: user.security_question || null,
       totalPoints: totalQuizPoints + Math.round(practicePoints),
       quizPoints: totalQuizPoints,
       gradeRank:   myGradeRank,

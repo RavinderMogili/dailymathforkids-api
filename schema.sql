@@ -6,6 +6,8 @@ create table if not exists users (
   city text default 'Moncton',
   parent_email text,
   pin_hash text,
+  security_question text,
+  security_answer text,
   created_at timestamptz default now()
 );
 
@@ -30,6 +32,8 @@ create table if not exists submissions (
 -- Run once to add columns to existing tables:
 -- ALTER TABLE submissions ADD COLUMN IF NOT EXISTS time_seconds int default null;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_hash text;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question text;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer text;
 
 -- Leaderboard view
 create or replace view leaderboard as

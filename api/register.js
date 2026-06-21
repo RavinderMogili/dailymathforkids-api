@@ -13,10 +13,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { nickname, grade, school, city, parent_email, pin } = req.body || {};
+    const { nickname, grade, school, city, parent_email, pin, security_question, security_answer } = req.body || {};
     if (!nickname) return res.status(400).json({ error: 'nickname required' });
     if (!grade) return res.status(400).json({ error: 'grade required' });
     if (!pin || !/^\d{4}$/.test(String(pin))) return res.status(400).json({ error: 'A 4-digit PIN is required' });
+    if (!parent_email && (!security_question || !security_answer)) {
+      return res.status(400).json({ error: 'parent_email or security question required for account recovery' });
+    }
 
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
@@ -38,6 +41,8 @@ export default async function handler(req, res) {
         city: city || null,
         parent_email: parent_email || null,
         pin_hash: hashPin(pin),
+        security_question: security_question || null,
+        security_answer: security_answer || null,
       })
       .select('id, nickname, grade, school, city, parent_email')
       .single();
