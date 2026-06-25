@@ -40,11 +40,12 @@ describe('POST /api/register', () => {
 // ─── Lookup ────────────────────────────────────────────────────────────────────
 
 describe('GET /api/lookup', () => {
-  test('returns 405 for POST', async () => {
+  test('POST without nickname returns 400', async () => {
     const { default: handler } = await import('../api/lookup.js');
     const res = mockRes();
-    await handler(mockReq({ method: 'POST' }), res);
-    expect(res.statusCode).toBe(405);
+    await handler(mockReq({ method: 'POST', body: {} }), res);
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/nickname/i);
   });
 
   test('returns 400 if no nickname', async () => {

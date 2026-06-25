@@ -64,13 +64,33 @@ describe('POST /api/register', () => {
     expect(res.end).toHaveBeenCalled();
   });
 
+  it('rejects missing PIN', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { nickname: 'Alice', grade: 'G3' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/pin/i);
+  });
+
+  it('rejects missing security question when no parent email', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { nickname: 'Alice', grade: 'G3', pin: '1234' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/security question|parent_email/i);
+  });
+
   it('registers successfully with valid data', async () => {
+    // First call: maybeSingle for duplicate check (no existing user)
+    mockMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // Second call: insert().select().single()
     mockSingle.mockResolvedValueOnce({
       data: { id: 'uuid-1', nickname: 'Alice', grade: 'G3', school: null, city: null, parent_email: null },
       error: null,
     });
     const res = fakeRes();
-    await handler({ method: 'POST', body: { nickname: 'Alice', grade: 'G3' } }, res);
+    await handler({ method: 'POST', body: {
+      nickname: 'Alice', grade: 'G3', pin: '1234',
+      security_question: 'What city were you born in?', security_answer: 'Toronto',
+    } }, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.body.nickname).toBe('Alice');
     expect(res.body.userId).toBe('uuid-1');
@@ -122,10 +142,11 @@ describe('GET /api/lookup', () => {
     expect(res.body.error).toMatch(/nickname/i);
   });
 
-  it('rejects non-GET', async () => {
+  it('POST without nickname returns 400', async () => {
     const res = fakeRes();
-    await handler({ method: 'POST' }, res);
-    expect(res.status).toHaveBeenCalledWith(405);
+    await handler({ method: 'POST', body: {} }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/nickname/i);
   });
 
   it('returns 404 when user not found', async () => {
