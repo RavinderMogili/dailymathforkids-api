@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { userId, correct, total, difficulty, topics, timeSeconds, pointsEarned } = req.body || {};
+    const { userId, correct, total, difficulty, topics, timeSeconds, pointsEarned, wrongAnswers } = req.body || {};
     if (!userId || correct == null || total == null) {
       return res.status(400).json({ error: 'userId, correct, and total are required' });
     }
@@ -28,9 +28,23 @@ export default async function handler(req, res) {
 
     if (error) return res.status(400).json({ error: error.message });
 
-    // Add practice points to user's total in submissions-independent way
-    // We rely on the leaderboard view summing submissions only, so practice points
-    // are tracked separately and shown on profile but don't affect leaderboard rank.
+    // Save wrong answers to mistakes table
+    if (Array.isArray(wrongAnswers) && wrongAnswers.length > 0) {
+      const mistakeRows = wrongAnswers.slice(0, 20).map(m => ({
+        user_id: userId,
+        source: 'practice',
+        quiz_id: null,
+        question_num: m.questionNum || null,
+        question_text: m.questionText || 'Unknown question',
+        correct_answer: m.correctAnswer || '',
+        user_answer: m.userAnswer || '',
+        choices: m.choices || null,
+        hint: m.hint || null,
+        topic: m.topic || null,
+        resolved: false,
+      }));
+      sb.from('mistakes').insert(mistakeRows).then(() => {}).catch(() => {});
+    }
 
     // Check prize milestone in background (non-blocking)
     checkPrizeMilestone(sb, userId).catch(() => {});

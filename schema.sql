@@ -112,3 +112,22 @@ select
   avg(score)::numeric(4,2) as avg_score
 from submissions
 group by 1, 2;
+
+-- Mistake history (wrong answers from daily quizzes and practice)
+create table if not exists mistakes (
+  id bigserial primary key,
+  user_id uuid references users(id) on delete cascade,
+  source text not null default 'quiz',  -- 'quiz' or 'practice'
+  quiz_id text,                          -- e.g. '2026-06-29-G9' for quiz, null for practice
+  question_num int,
+  question_text text not null,
+  correct_answer text not null,
+  user_answer text not null,
+  choices jsonb,
+  hint text,
+  topic text,
+  resolved boolean not null default false,  -- true when user gets it right in review
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_mistakes_user on mistakes(user_id, source, created_at desc);

@@ -60,6 +60,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: sErr.message });
     }
 
+    // Save wrong answers to mistakes table (non-blocking)
+    const wrongOnes = results.filter(r => !r.correct);
+    if (wrongOnes.length > 0) {
+      const { data: quiz2 } = await sb.from('quizzes').select('questions').eq('id', quizId).single();
+      const questions = (quiz2 && quiz2.questions) || [];
+      const mistakeRows = wrongOnes.map(r => ({
+        user_id: userId,
+        source: 'quiz',
+        quiz_id: quizId,
+        question_num: r.question,
+        question_text: questions[r.question - 1] || `Question ${r.question}`,
+        correct_answer: r.expected,
+        user_answer: r.given,
+        resolved: false,
+      }));
+      sb.from('mistakes').insert(mistakeRows).then(() => {}).catch(() => {});
+    }
+
     // Check prize milestone in background (non-blocking)
     checkPrizeMilestone(sb, userId).catch(() => {});
 
