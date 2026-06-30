@@ -30,6 +30,14 @@ export default async function handler(req, res) {
 
     if (sErr) return res.status(400).json({ error: sErr.message });
 
+    // Fetch quiz answer counts to show correct "out of" for each submission
+    const quizIds = [...new Set((subs || []).map(s => s.quiz_id).filter(Boolean))];
+    let quizMeta = {};
+    if (quizIds.length > 0) {
+      const { data: quizzes } = await sb.from('quizzes').select('id, answers').in('id', quizIds);
+      if (quizzes) quizzes.forEach(q => { quizMeta[q.id] = (q.answers || []).length; });
+    }
+
     const quizPoints = (subs || []).reduce((sum, s) => sum + (s.points_earned || 0), 0);
 
     // Also get ALL quiz submissions for accurate total (subs is limited to 90 for display)
@@ -81,6 +89,7 @@ export default async function handler(req, res) {
       submissions: (subs || []).map(s => ({
         quizId:       s.quiz_id,
         score:        s.score,
+        outOf:        quizMeta[s.quiz_id] || 10,
         pointsEarned: s.points_earned,
         timeSeconds:  s.time_seconds || null,
         date:         s.created_at ? s.created_at.slice(0, 10) : null,
