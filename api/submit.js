@@ -41,8 +41,11 @@ export default async function handler(req, res) {
     const results = answers.map((a, i) => {
       const got = String(a ?? '').trim().toLowerCase();
       const exp = String(correct[i] ?? '').trim().toLowerCase();
-      const isCorrect = got === exp || (
-        !isNaN(parseFloat(got)) && !isNaN(parseFloat(exp)) && parseFloat(got) === parseFloat(exp)
+      // Empty answers are never correct; skip questions beyond stored answers
+      const isCorrect = got !== '' && exp !== '' && (
+        got === exp || (
+          !isNaN(parseFloat(got)) && !isNaN(parseFloat(exp)) && parseFloat(got) === parseFloat(exp)
+        )
       );
       return { question: i + 1, correct: isCorrect, expected: correct[i] || '', given: String(a ?? '').trim() };
     });
