@@ -9,13 +9,32 @@
  * nicknames with a 'test_' prefix so they can be cleaned up later.
  */
 
-import { describe, it, expect, beforeAll } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
 const API = 'https://dailymathforkids-api.vercel.app';
 const TEST_PREFIX = 'test_' + Date.now() + '_';
 const TEST_PIN = '9876';
 
 let testUser = null; // { userId, nickname }
+
+// Clean up test accounts after the run (needs SUPABASE_SERVICE_ROLE in env)
+afterAll(async () => {
+  const key = (process.env.SUPABASE_SERVICE_ROLE || '').trim();
+  if (!key) {
+    console.log('[cleanup] SUPABASE_SERVICE_ROLE not set — test accounts left in DB.');
+    return;
+  }
+  try {
+    const res = await fetch(`${API}/api/cleanup-tests`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}` },
+    });
+    const body = await res.json();
+    console.log(res.ok ? `[cleanup] Deleted ${body.deleted} test account(s).` : `[cleanup] Failed: ${body.error}`);
+  } catch (e) {
+    console.log('[cleanup] Error:', e.message);
+  }
+});
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
