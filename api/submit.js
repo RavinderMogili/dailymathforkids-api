@@ -41,10 +41,13 @@ export default async function handler(req, res) {
     const results = answers.map((a, i) => {
       const got = String(a ?? '').trim().toLowerCase();
       const exp = String(correct[i] ?? '').trim().toLowerCase();
+      // Numeric comparison only when BOTH are pure numbers ("3.80" == "3.8"),
+      // so "9" does not falsely match "9 remainder 2".
+      const isPureNumber = s => /^-?\d*\.?\d+$/.test(s);
       // Empty answers are never correct; skip questions beyond stored answers
       const isCorrect = got !== '' && exp !== '' && (
         got === exp || (
-          !isNaN(parseFloat(got)) && !isNaN(parseFloat(exp)) && parseFloat(got) === parseFloat(exp)
+          isPureNumber(got) && isPureNumber(exp) && parseFloat(got) === parseFloat(exp)
         )
       );
       return { question: i + 1, correct: isCorrect, expected: correct[i] || '', given: String(a ?? '').trim() };
@@ -78,11 +81,12 @@ export default async function handler(req, res) {
         user_answer: r.given,
         resolved: false,
       }));
-      sb.from('mistakes').insert(mistakeRows).then(() => {}).catch(() => {});
+      const { error: mErr } = await sb.from('mistakes').insert(mistakeRows);
+      if (mErr) console.error('mistakes insert failed:', mErr.message);
     }
 
-    // Check prize milestone in background (non-blocking)
-    checkPrizeMilestone(sb, userId).catch(() => {});
+    // Check prize milestone (awaited: un-awaited work may never run on serverless)
+    await checkPrizeMilestone(sb, userId).catch(e => console.error('prize check failed:', e.message));
 
     return res.status(200).json({ score, outOf: correct.length, points_earned, already: false, results });
   } catch (e) {

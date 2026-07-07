@@ -34,6 +34,14 @@ export default async function handler(req, res) {
 
     if (error) return res.status(400).json({ error: error.message });
 
+    // Look up sender identity for the notification email
+    let sender = null;
+    if (userId) {
+      const { data: u } = await sb.from('users')
+        .select('nickname, grade, city').eq('id', userId).maybeSingle();
+      if (u) sender = `${u.nickname} (${u.grade}${u.city ? ', ' + u.city : ''})`;
+    }
+
     // Email notification to admin
     const resendKey = process.env.RESEND_API_KEY;
     if (resendKey) {
@@ -52,6 +60,7 @@ export default async function handler(req, res) {
               <div style="background:#f8fafc;border-radius:12px;padding:16px;margin:12px 0">
                 <p style="margin:0;white-space:pre-wrap">${message.trim()}</p>
               </div>
+              ${sender ? `<p><strong>From:</strong> ${sender}</p>` : '<p><strong>From:</strong> not logged in</p>'}
               ${email ? `<p><strong>Reply to:</strong> <a href="mailto:${email}">${email}</a></p>` : ''}
               ${pageUrl ? `<p><strong>Page:</strong> ${pageUrl}</p>` : ''}
               ${quizId ? `<p><strong>Quiz:</strong> ${quizId}${questionNum ? ` — Question #${questionNum}` : ''}</p>` : ''}
