@@ -4,7 +4,7 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 const mockSingle = jest.fn();
 const mockMaybeSingle = jest.fn();
 const mockLimit = jest.fn(() => ({ single: mockSingle, maybeSingle: mockMaybeSingle }));
-const mockLike = jest.fn(() => ({ maybeSingle: mockMaybeSingle }));
+const mockLike = jest.fn(() => ({ maybeSingle: mockMaybeSingle, limit: mockLimit }));
 const mockEq = jest.fn(() => ({ single: mockSingle, like: mockLike, limit: mockLimit, maybeSingle: mockMaybeSingle }));
 const mockSelect = jest.fn(() => ({ eq: mockEq, single: mockSingle }));
 const mockInsert = jest.fn(() => ({ select: mockSelect }));
@@ -123,6 +123,16 @@ describe('POST /api/submit', () => {
     const res = fakeRes();
     await handler({ method: 'GET' }, res);
     expect(res.status).toHaveBeenCalledWith(405);
+  });
+
+  it('blocks re-submission when user already submitted today', async () => {
+    // limit(2) returns one existing submission row — should block
+    mockLimit.mockResolvedValueOnce({ data: [{ id: 1 }], error: null });
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', quizId: '2026-07-09-G12', answers: ['A'] } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.body.already).toBe(true);
+    expect(res.body.score).toBeNull();
   });
 });
 
