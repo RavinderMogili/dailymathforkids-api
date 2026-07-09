@@ -22,12 +22,13 @@ export default async function handler(req, res) {
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
     const datePart = quizId.slice(0, 10);
-    const { data: todaySub } = await sb.from('submissions')
+    const { data: todaySubs, error: dupErr } = await sb.from('submissions')
       .select('id')
       .eq('user_id', userId)
       .like('quiz_id', datePart + '%')
-      .maybeSingle();
-    if (todaySub) {
+      .limit(2);
+    if (dupErr) return res.status(400).json({ error: dupErr.message });
+    if (todaySubs && todaySubs.length > 0) {
       return res.status(200).json({ score: null, outOf: 5, points_earned: 0, already: true });
     }
 
