@@ -8,6 +8,8 @@ create table if not exists users (
   pin_hash text,
   security_question text,
   security_answer text,
+  show_on_leaderboard boolean not null default false,
+  leaderboard_opted_in_at timestamptz,
   created_at timestamptz default now()
 );
 
@@ -131,3 +133,19 @@ create table if not exists mistakes (
 );
 
 create index if not exists idx_mistakes_user on mistakes(user_id, source, created_at desc);
+
+-- Reward milestone tracking (e.g. 300-point Walmart gift card)
+create table if not exists reward_milestones (
+  id bigserial primary key,
+  user_id uuid references users(id) on delete cascade,
+  threshold int not null default 300,
+  reached_at timestamptz not null default now(),
+  reward_status text not null default 'eligible',  -- eligible | contacted | delivered
+  delivered_at timestamptz,
+  unique (user_id, threshold)
+);
+
+-- Performance indexes for weekly leaderboard queries
+create index if not exists idx_submissions_created_at on submissions(created_at);
+create index if not exists idx_practice_submissions_created_at on practice_submissions(created_at);
+create index if not exists idx_users_show_on_leaderboard on users(show_on_leaderboard) where show_on_leaderboard = true;

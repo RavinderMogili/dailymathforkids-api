@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
+import { validateNickname } from './_nickname-check.js';
 
 function hashPin(pin) {
   return createHash('sha256').update(String(pin)).digest('hex');
@@ -16,6 +17,12 @@ export default async function handler(req, res) {
     const { nickname, grade, school, city, parent_email, pin, security_question, security_answer } = req.body || {};
     if (!nickname) return res.status(400).json({ error: 'nickname required' });
     if (!grade) return res.status(400).json({ error: 'grade required' });
+
+    // Validate nickname for safety
+    const nicknameCheck = validateNickname(nickname);
+    if (!nicknameCheck.valid) {
+      return res.status(400).json({ error: nicknameCheck.reason });
+    }
     if (!pin || !/^\d{4}$/.test(String(pin))) return res.status(400).json({ error: 'A 4-digit PIN is required' });
     if (!parent_email && (!security_question || !security_answer)) {
       return res.status(400).json({ error: 'parent_email or security question required for account recovery' });
