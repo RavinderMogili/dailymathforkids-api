@@ -37,7 +37,7 @@ create table if not exists submissions (
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question text;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer text;
 
--- Leaderboard view
+-- Leaderboard view. Scoped to opted-in users only (show_on_leaderboard = true).
 create or replace view leaderboard as
 select
   u.id,
@@ -50,6 +50,7 @@ select
   rank() over (order by coalesce(sum(s.points_earned), 0) desc) as rank
 from users u
 left join submissions s on s.user_id = u.id
+where u.show_on_leaderboard = true
 group by u.id, u.nickname, u.grade, u.school, u.city;
 
 -- Per-question results

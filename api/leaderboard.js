@@ -14,9 +14,10 @@ export default async function handler(req, res) {
     if (type === 'speed') {
       let q = sb
         .from('submissions')
-        .select('quiz_id, time_seconds, score, user_id, users(nickname, grade)')
+        .select('quiz_id, time_seconds, score, user_id, users!inner(nickname, grade, show_on_leaderboard)')
         .not('time_seconds', 'is', null)
         .eq('score', 5)
+        .eq('users.show_on_leaderboard', true)
         .order('time_seconds', { ascending: true })
         .limit(Math.min(Number(limit) || 50, 100));
 
