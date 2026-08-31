@@ -15,7 +15,7 @@ export default async function handler(req, res) {
 
     const { data: user, error: uErr } = await sb
       .from('users')
-      .select('nickname, grade, school, city, pin_hash, security_question, show_on_leaderboard')
+      .select('nickname, grade, school, city, pin_hash, security_question, show_on_leaderboard, grade_correction_used')
       .eq('id', userId)
       .maybeSingle();
 
@@ -73,6 +73,8 @@ export default async function handler(req, res) {
     return res.status(200).json({
       nickname:    user.nickname,
       grade:       user.grade,
+      officialGrade: user.grade,
+      gradeCorrectionUsed: !!user.grade_correction_used,
       school:      user.school,
       hasPin:      !!user.pin_hash,
       securityQuestion: user.security_question || null,

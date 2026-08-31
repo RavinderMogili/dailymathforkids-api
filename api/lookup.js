@@ -23,7 +23,7 @@ export default async function handler(req, res) {
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
     const { data, error } = await sb
       .from('users')
-      .select('id, nickname, grade, school, city, pin_hash')
+      .select('id, nickname, grade, school, city, pin_hash, grade_correction_used')
       .eq('nickname', nickname.trim())
       .maybeSingle();
 
@@ -46,6 +46,7 @@ export default async function handler(req, res) {
           school: data.school,
           city: data.city,
           needSetPin: true,
+          gradeCorrectionUsed: !!data.grade_correction_used,
         });
       }
     }
@@ -56,6 +57,7 @@ export default async function handler(req, res) {
       grade: data.grade,
       school: data.school,
       city: data.city,
+      gradeCorrectionUsed: !!data.grade_correction_used,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });

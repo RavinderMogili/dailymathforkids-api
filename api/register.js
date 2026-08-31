@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
 import { validateNickname } from './_nickname-check.js';
+import { normalizeGrade } from './_grade.js';
 
 function hashPin(pin) {
   return createHash('sha256').update(String(pin)).digest('hex');
@@ -17,6 +18,8 @@ export default async function handler(req, res) {
     const { nickname, grade, school, city, parent_email, pin, security_question, security_answer } = req.body || {};
     if (!nickname) return res.status(400).json({ error: 'nickname required' });
     if (!grade) return res.status(400).json({ error: 'grade required' });
+    const officialGrade = normalizeGrade(grade);
+    if (!officialGrade) return res.status(400).json({ error: 'grade must be Grade 1 through Grade 12' });
 
     // Validate nickname for safety
     const nicknameCheck = validateNickname(nickname);
@@ -43,7 +46,7 @@ export default async function handler(req, res) {
     const { data, error } = await sb.from('users')
       .insert({
         nickname: nickname.trim(),
-        grade,
+        grade: officialGrade,
         school: school || null,
         city: city || null,
         parent_email: parent_email || null,
@@ -51,7 +54,7 @@ export default async function handler(req, res) {
         security_question: security_question || null,
         security_answer: security_answer || null,
       })
-      .select('id, nickname, grade, school, city, parent_email')
+      .select('id, nickname, grade, school, city, parent_email, grade_correction_used')
       .single();
 
     if (error) return res.status(400).json({ error: error.message });
@@ -62,6 +65,7 @@ export default async function handler(req, res) {
       school: data.school,
       city: data.city,
       parent_email: data.parent_email,
+      gradeCorrectionUsed: !!data.grade_correction_used,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });

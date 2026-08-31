@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkPrizeMilestone } from './_prize-check.js';
+import { gradeFromQuizId, normalizeGrade } from './_grade.js';
+import { getRewardDay } from './_time.js';
 
 function calcPoints(score, outOf) {
   let pts = score;
@@ -20,6 +22,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'bad input' });
     }
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+
+    const { data: user, error: userErr } = await sb.from('users')
+      .select('grade').eq('id', userId).maybeSingle();
+    if (userErr || !user) return res.status(404).json({ error: 'User not found' });
+    const officialGrade = normalizeGrade(user.grade);
+    const quizGrade = gradeFromQuizId(quizId);
+    const rewardDay = getRewardDay();
+    if (quizId.slice(0, 10) !== rewardDay) {
+      return res.status(403).json({ error: 'Only today\'s Daily Quiz can earn points' });
+    }
+    if (!officialGrade || !quizGrade || quizGrade !== officialGrade) {
+      return res.status(403).json({ error: 'Daily Quiz rewards are available only for your Official Grade' });
+    }
 
     const datePart = quizId.slice(0, 10);
     const { data: todaySubs, error: dupErr } = await sb.from('submissions')
@@ -58,6 +73,7 @@ export default async function handler(req, res) {
 
     const { error: sErr } = await sb.from('submissions')
       .insert({ user_id: userId, quiz_id: quizId, score, points_earned,
+                reward_day: rewardDay, official_grade_at_submission: officialGrade,
                 time_seconds: (typeof timeSeconds === 'number' && timeSeconds > 0) ? timeSeconds : null });
 
     if (sErr) {
