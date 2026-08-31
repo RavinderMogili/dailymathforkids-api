@@ -52,13 +52,13 @@ describe('Live API smoke tests', () => {
     expect(Array.isArray(data.leaderboard)).toBe(true);
   });
 
-  it('GET /api/leaderboard?grade=G3 filters by grade', async () => {
+  it('GET /api/leaderboard?grade=G3 returns Grade 3 attributed results', async () => {
     const res = await fetch(`${API}/api/leaderboard?grade=G3`);
     expect(res.ok).toBe(true);
     const data = await res.json();
     expect(Array.isArray(data.leaderboard)).toBe(true);
     data.leaderboard.forEach(entry => {
-      expect(entry.grade).toBe('G3');
+      expect(entry.grade).toBe('Grade 3');
     });
   });
 });

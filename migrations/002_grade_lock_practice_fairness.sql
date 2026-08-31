@@ -36,6 +36,9 @@ create unique index if not exists practice_submissions_user_key_uidx
   where submission_key is not null;
 create index if not exists practice_submissions_user_reward_day_idx
   on public.practice_submissions (user_id, reward_day);
+create index if not exists practice_submissions_grade_user_idx
+  on public.practice_submissions (official_grade_at_award, user_id)
+  where official_grade_at_award is not null and reward_eligible = true;
 
 alter table public.submissions
   add column if not exists reward_day date,
@@ -49,6 +52,9 @@ where reward_day is null;
 -- Historical duplicates are grandfathered. The partial constraint protects only new submissions.
 create unique index if not exists submissions_one_protected_reward_per_day_uidx
   on public.submissions (user_id, reward_day)
+  where official_grade_at_submission is not null;
+create index if not exists submissions_grade_user_idx
+  on public.submissions (official_grade_at_submission, user_id)
   where official_grade_at_submission is not null;
 
 create or replace function public.correct_official_grade(p_user_id uuid, p_new_grade text)
@@ -137,4 +143,3 @@ revoke all on function public.award_practice_submission(uuid, text, integer, int
   from public, anon, authenticated;
 grant execute on function public.award_practice_submission(uuid, text, integer, integer, text, date, text, text[], integer)
   to service_role;
-
