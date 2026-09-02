@@ -25,17 +25,35 @@ export default async function handler(req, res) {
 
     const { data, error } = await sb
       .from('reward_milestones')
-      .select('threshold, reached_at, users!inner(nickname, show_on_prize_club)')
+      .select('threshold, reached_at, user_id, users!inner(nickname, show_on_prize_club)')
       .eq('users.show_on_prize_club', true)
       .order('reached_at', { ascending: false });
 
     if (error) return res.status(500).json({ error: 'Could not load data. Please try again soon.' });
 
-    const members = (data || []).map(r => ({
-      nickname: r.users?.nickname,
-      threshold: r.threshold,
-      reachedAt: r.reached_at ? r.reached_at.slice(0, 10) : null,
-    }));
+    const members = [];
+    for (const r of (data || [])) {
+      const userIds = [r.user_id];
+      const { data: subs } = await sb
+        .from('submissions')
+        .select('points_earned')
+        .in('user_id', userIds);
+
+      const { data: pracSubs } = await sb
+        .from('practice_submissions')
+        .select('points_earned')
+        .in('user_id', userIds);
+
+      let totalPoints = 0;
+      (subs || []).forEach(s => { totalPoints += s.points_earned || 0; });
+      (pracSubs || []).forEach(s => { totalPoints += Math.round(parseFloat(s.points_earned) || 0); });
+
+      members.push({
+        nickname: r.users?.nickname,
+        threshold: r.threshold,
+        totalPoints: totalPoints,
+      });
+    }
 
     return res.status(200).json({ members, count: members.length });
   } catch (e) {
