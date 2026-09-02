@@ -130,7 +130,7 @@ describe('POST /api/submit', () => {
     // limit(2) returns one existing submission row — should block
     mockLimit.mockResolvedValueOnce({ data: [{ id: 1 }], error: null });
     const res = fakeRes();
-    await handler({ method: 'POST', body: { userId: 'u1', quizId: '2026-07-09-G12', answers: ['A'] } }, res);
+    await handler({ method: 'POST', body: { userId: 'u1', quizId: '2026-09-02-G12', answers: ['A'] } }, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.body.already).toBe(true);
     expect(res.body.score).toBeNull();
