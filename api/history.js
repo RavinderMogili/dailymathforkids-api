@@ -19,7 +19,8 @@ export default async function handler(req, res) {
       .eq('id', userId)
       .maybeSingle();
 
-    if (uErr || !user) return res.status(404).json({ error: 'User not found' });
+    if (uErr) return res.status(500).json({ error: uErr.message });
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
     const { data: subs, error: sErr } = await sb
       .from('submissions')
