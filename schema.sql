@@ -10,6 +10,8 @@ create table if not exists users (
   security_answer text,
   show_on_leaderboard boolean not null default false,
   leaderboard_opted_in_at timestamptz,
+  show_on_prize_club boolean not null default false,
+  prize_club_opted_in_at timestamptz,
   created_at timestamptz default now()
 );
 
@@ -36,6 +38,8 @@ create table if not exists submissions (
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_hash text;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS security_question text;
 -- ALTER TABLE users ADD COLUMN IF NOT EXISTS security_answer text;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS show_on_prize_club boolean not null default false;
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS prize_club_opted_in_at timestamptz;
 
 -- Leaderboard view
 create or replace view leaderboard as

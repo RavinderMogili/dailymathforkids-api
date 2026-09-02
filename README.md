@@ -55,6 +55,11 @@ Frontend repo: [dailymathforkids](https://github.com/RavinderMogili/dailymathfor
 | `/api/feedback` | POST | Bug reports and question issue reports from the site |
 | `/api/analytics` | GET | Basic usage stats |
 | `/api/weekly-email` | GET/POST | Weekly parent progress email (Vercel Cron, Sundays) |
+| `/api/math-stars` | GET | Public weekly leaderboard (opted-in students only) |
+| `/api/math-stars-opt` | POST | Toggle a student's Math Stars visibility |
+| `/api/prize-club` | GET | Public "300-Point Club" — students who crossed a reward milestone and opted in |
+| `/api/prize-club-opt` | POST | Toggle a student's 300-Point Club visibility (separate consent from Math Stars) |
+| `/api/prize-winners` | GET | Admin-only — full milestone list including parent emails, for sending gift cards |
 
 ## Points System
 - **+1 pt** per correct answer

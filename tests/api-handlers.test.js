@@ -220,3 +220,56 @@ describe('GET /api/lookup', () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });
+
+// ── Prize Club opt-in tests ──
+describe('POST /api/prize-club-opt', () => {
+  let handler;
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const mod = await import('../api/prize-club-opt.js');
+    handler = mod.default;
+  });
+
+  it('rejects missing userId', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { optIn: true } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/userId/i);
+  });
+
+  it('rejects non-boolean optIn', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', optIn: 'yes' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/optIn/i);
+  });
+
+  it('returns 404 when user not found', async () => {
+    mockMaybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', optIn: true } }, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it('rejects non-POST methods', async () => {
+    const res = fakeRes();
+    await handler({ method: 'GET' }, res);
+    expect(res.status).toHaveBeenCalledWith(405);
+  });
+});
+
+// ── Prize Club public listing tests ──
+describe('GET /api/prize-club', () => {
+  let handler;
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const mod = await import('../api/prize-club.js');
+    handler = mod.default;
+  });
+
+  it('rejects non-GET methods', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST' }, res);
+    expect(res.status).toHaveBeenCalledWith(405);
+  });
+});
