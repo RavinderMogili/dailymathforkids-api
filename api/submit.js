@@ -1,10 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkPrizeMilestone } from './_prize-check.js';
 
-function calcPoints(score, outOf) {
-  let pts = score;
-  if (outOf > 0 && score === outOf) pts += 3;
-  return pts;
+function getTodayMoncton() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Moncton',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(now);
+  const year = parts.find(p => p.type === 'year').value;
+  const month = parts.find(p => p.type === 'month').value;
+  const day = parts.find(p => p.type === 'day').value;
+  return `${year}-${month}-${day}`;
+}
+
+function calcWeightedPoints(correctByDifficulty) {
+  const easyPoints = (correctByDifficulty.easy || 0) * 1;
+  const mediumPoints = (correctByDifficulty.medium || 0) * 2;
+  const hardPoints = (correctByDifficulty.hard || 0) * 3;
+  return easyPoints + mediumPoints + hardPoints;
 }
 
 export default async function handler(req, res) {
@@ -21,7 +34,14 @@ export default async function handler(req, res) {
     }
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
-    const datePart = quizId.slice(0, 10);
+    // Validate quiz date matches today in America/Moncton timezone
+    const quizDatePart = quizId.slice(0, 10);
+    const todayMoncton = getTodayMoncton();
+    if (quizDatePart !== todayMoncton) {
+      return res.status(403).json({ error: 'This quiz has expired. Only today\'s quiz can be submitted for points.' });
+    }
+
+    const datePart = quizDatePart;
     const { data: todaySubs, error: dupErr } = await sb.from('submissions')
       .select('id')
       .eq('user_id', userId)
@@ -51,10 +71,21 @@ export default async function handler(req, res) {
           isPureNumber(got) && isPureNumber(exp) && parseFloat(got) === parseFloat(exp)
         )
       );
-      return { question: i + 1, correct: isCorrect, expected: correct[i] || '', given: String(a ?? '').trim() };
+      // Determine difficulty by position: positions 0-3 = Easy, 4-7 = Medium, 8-9 = Hard
+      let difficulty = 'easy';
+      if (i >= 4 && i < 8) difficulty = 'medium';
+      else if (i >= 8) difficulty = 'hard';
+      return { question: i + 1, correct: isCorrect, expected: correct[i] || '', given: String(a ?? '').trim(), difficulty };
     });
     const score = results.filter(r => r.correct).length;
-    const points_earned = calcPoints(score, correct.length);
+
+    // Calculate weighted points: Easy=1, Medium=2, Hard=3
+    const correctByDifficulty = {
+      easy: results.filter(r => r.correct && r.difficulty === 'easy').length,
+      medium: results.filter(r => r.correct && r.difficulty === 'medium').length,
+      hard: results.filter(r => r.correct && r.difficulty === 'hard').length,
+    };
+    const points_earned = calcWeightedPoints(correctByDifficulty);
 
     const { error: sErr } = await sb.from('submissions')
       .insert({ user_id: userId, quiz_id: quizId, score, points_earned,

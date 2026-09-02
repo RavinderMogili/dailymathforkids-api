@@ -94,8 +94,10 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  // Short cache to ensure opted-out students disappear promptly
-  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
+  // Cache strategy: public cache for 60s, but browsers must revalidate (no-cache).
+  // This ensures opted-out students disappear within 60s after toggling off, while still
+  // benefiting from edge caching for repeat visitors within the same minute.
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60, no-cache');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 

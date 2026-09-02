@@ -13,8 +13,10 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  // Short cache so opted-out students disappear promptly
-  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60');
+  // Cache strategy: public cache for 60s, but browsers must revalidate (no-cache).
+  // This ensures opted-out students disappear within 60s after toggling off, while still
+  // benefiting from edge caching for repeat visitors within the same minute.
+  res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=60, no-cache');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
@@ -25,7 +27,7 @@ export default async function handler(req, res) {
       .from('reward_milestones')
       .select('threshold, reached_at, users!inner(nickname, show_on_prize_club)')
       .eq('users.show_on_prize_club', true)
-      .order('reached_at', { ascending: true });
+      .order('reached_at', { ascending: false });
 
     if (error) return res.status(500).json({ error: 'Could not load data. Please try again soon.' });
 
