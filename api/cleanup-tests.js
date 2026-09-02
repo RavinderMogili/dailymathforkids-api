@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js';
 
 // Deletes accounts created by automated tests (Playwright E2E and Jest
 // integration tests). Protected by the service role key, same as upsert-quiz.
-// Test nickname patterns: 'test_<timestamp>_...' and 'E2E_...'
-const TEST_NICKNAME_RE = /^(test_\d+_|E2E_)/;
+// Test nickname patterns: 'test_<base36-id>_...' (numeric or alphanumeric) and 'E2E_...'
+const TEST_NICKNAME_RE = /^(test_[a-z0-9]+_|E2E_)/i;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

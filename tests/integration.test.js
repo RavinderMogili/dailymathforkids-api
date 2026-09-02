@@ -12,7 +12,10 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 
 const API = 'https://dailymathforkids-api.vercel.app';
-const TEST_PREFIX = 'test_' + Date.now() + '_';
+// Keep this short (nicknames are capped at 20 chars) and avoid a run of 7+
+// consecutive digits (the nickname validator rejects anything that looks
+// like a phone number), hence the base36 encoding + truncation.
+const TEST_PREFIX = 'test_' + Date.now().toString(36).slice(-6) + '_';
 const TEST_PIN = '9876';
 
 let testUser = null; // { userId, nickname }
