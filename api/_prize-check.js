@@ -35,15 +35,21 @@ export async function checkPrizeMilestone(sb, userId) {
     const total = quizTotal + Math.round(pracTotal);
     if (total < PRIZE_THRESHOLD) return;
 
-    // Check if we already notified for this user (use a simple flag in user metadata)
-    // We'll use a convention: if we've sent the email, we set a tag in localStorage-style
-    // For simplicity, check if there's already been a notification by looking at total
-    // We only notify if they just crossed the threshold (were below before this submission)
-    // Approximate: if total minus latest submission points is below threshold
-    // But to keep it simple and reliable, we'll just check a "prize_notified" field
-
-    // For now, always notify — admin can ignore duplicates
-    // In production you'd add a prize_notified column
+    // Record the milestone once per (user, threshold). The unique constraint
+    // means only the first crossing inserts a row — later submissions that
+    // are still above the threshold are silently ignored (no duplicate email).
+    const { data: inserted, error: milestoneErr } = await sb
+      .from('reward_milestones')
+      .upsert(
+        { user_id: userId, threshold: PRIZE_THRESHOLD },
+        { onConflict: 'user_id,threshold', ignoreDuplicates: true }
+      )
+      .select('id');
+    if (milestoneErr) {
+      console.error('reward_milestones insert failed:', milestoneErr.message);
+      return;
+    }
+    if (!inserted || inserted.length === 0) return; // already recorded — don't re-notify
 
     const resendKey = process.env.RESEND_API_KEY;
     if (!resendKey) return;
