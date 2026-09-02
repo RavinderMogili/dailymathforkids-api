@@ -3,9 +3,10 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 // ── Mock Supabase ──
 const mockSingle = jest.fn();
 const mockMaybeSingle = jest.fn();
+const mockGte = jest.fn(() => ({ data: [], error: null }));
 const mockLimit = jest.fn(() => ({ single: mockSingle, maybeSingle: mockMaybeSingle }));
 const mockLike = jest.fn(() => ({ maybeSingle: mockMaybeSingle, limit: mockLimit }));
-const mockEq = jest.fn(() => ({ single: mockSingle, like: mockLike, limit: mockLimit, maybeSingle: mockMaybeSingle }));
+const mockEq = jest.fn(() => ({ single: mockSingle, like: mockLike, limit: mockLimit, maybeSingle: mockMaybeSingle, gte: mockGte }));
 const mockSelect = jest.fn(() => ({ eq: mockEq, single: mockSingle }));
 const mockInsert = jest.fn(() => ({ select: mockSelect }));
 const mockUpsert = jest.fn(() => ({ select: mockSelect }));
@@ -133,6 +134,59 @@ describe('POST /api/submit', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.body.already).toBe(true);
     expect(res.body.score).toBeNull();
+  });
+});
+
+// ── Practice submit tests ──
+describe('POST /api/practice-submit', () => {
+  let handler;
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockGte.mockImplementation(() => ({ data: [], error: null }));
+    const mod = await import('../api/practice-submit.js');
+    handler = mod.default;
+  });
+
+  it('rejects missing userId', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { correct: 3, total: 5 } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('caps points at the remaining daily allowance and ignores a client-supplied pointsEarned', async () => {
+    // 8 points already earned earlier today
+    mockGte.mockResolvedValueOnce({
+      data: [{ points_earned: 8, created_at: new Date().toISOString() }],
+      error: null,
+    });
+    const res = fakeRes();
+    await handler({ method: 'POST', body: {
+      userId: 'u1', correct: 10, total: 10, pointsEarned: 999,
+    } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.body.pointsEarned).toBe(2); // raw 5 pts, but only 2 remaining under the 10/day cap
+  });
+
+  it('awards zero points once the daily cap is already reached', async () => {
+    mockGte.mockResolvedValueOnce({
+      data: [{ points_earned: 10, created_at: new Date().toISOString() }],
+      error: null,
+    });
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', correct: 6, total: 6 } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.body.pointsEarned).toBe(0);
+  });
+
+  it('ignores practice_submissions rows from a previous day when computing the cap', async () => {
+    const yesterday = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+    mockGte.mockResolvedValueOnce({
+      data: [{ points_earned: 10, created_at: yesterday }],
+      error: null,
+    });
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', correct: 4, total: 4 } }, res);
+    expect(res.body.pointsEarned).toBe(2); // 4 correct * 0.5, none of yesterday's points count
   });
 });
 
