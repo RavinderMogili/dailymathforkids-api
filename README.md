@@ -60,6 +60,7 @@ Frontend repo: [dailymathforkids](https://github.com/RavinderMogili/dailymathfor
 | `/api/prize-club` | GET | Public "300-Point Club" — students who crossed a reward milestone and opted in |
 | `/api/prize-club-opt` | POST | Toggle a student's 300-Point Club visibility (separate consent from Math Stars) |
 | `/api/prize-winners` | GET | Admin-only — full milestone list including parent emails, for sending gift cards |
+| `/api/send-prize-email` | POST | Admin-only — emails a Walmart eGift code to a winner's parent from `progress@dailymathforkids.com`, marks milestone delivered |
 
 ## Points System
 - **+1 pt** per correct answer
