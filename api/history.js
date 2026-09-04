@@ -71,6 +71,13 @@ export default async function handler(req, res) {
     const practiceTotal = (practiceSubs || []).reduce((sum, p) => sum + (p.total || 0), 0);
     const practiceCorrect = (practiceSubs || []).reduce((sum, p) => sum + (p.correct || 0), 0);
 
+    // Also get ALL practice submissions for accurate total (practiceSubs above is limited to 50 for display)
+    const { data: allPracticePts } = await sb
+      .from('practice_submissions')
+      .select('points_earned')
+      .eq('user_id', userId);
+    const totalPracticePoints = (allPracticePts || []).reduce((sum, p) => sum + (parseFloat(p.points_earned) || 0), 0);
+
     return res.status(200).json({
       nickname:    user.nickname,
       grade:       user.grade,
@@ -79,7 +86,7 @@ export default async function handler(req, res) {
       securityQuestion: user.security_question || null,
       show_on_leaderboard: !!user.show_on_leaderboard,
       show_on_prize_club: !!user.show_on_prize_club,
-      totalPoints: totalQuizPoints + Math.round(practicePoints),
+      totalPoints: totalQuizPoints + Math.round(totalPracticePoints),
       quizPoints: totalQuizPoints,
       gradeRank:   myGradeRank,
       gradeTotal,
