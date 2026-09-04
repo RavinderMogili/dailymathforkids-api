@@ -46,7 +46,14 @@ export default async function handler(req, res) {
 
       let totalPoints = 0;
       (subs || []).forEach(s => { totalPoints += s.points_earned || 0; });
-      (pracSubs || []).forEach(s => { totalPoints += Math.round(parseFloat(s.points_earned) || 0); });
+      // Sum raw fractional practice points first, then round once at the
+      // end (matching /api/history) — rounding each row individually before
+      // summing systematically inflates the total, since every session's
+      // points are a whole number or end in exactly .5, and Math.round()
+      // always rounds .5 up.
+      let pracRaw = 0;
+      (pracSubs || []).forEach(s => { pracRaw += parseFloat(s.points_earned) || 0; });
+      totalPoints += Math.round(pracRaw);
 
       members.push({
         nickname: r.users?.nickname,
