@@ -127,10 +127,16 @@ describe('POST /api/submit', () => {
   });
 
   it('blocks re-submission when user already submitted today', async () => {
+    // Pin "today" so the quiz-expiry check in api/submit.js always matches quizId's date
+    jest.useFakeTimers().setSystemTime(new Date('2026-09-02T12:00:00-03:00'));
     // limit(2) returns one existing submission row — should block
     mockLimit.mockResolvedValueOnce({ data: [{ id: 1 }], error: null });
     const res = fakeRes();
-    await handler({ method: 'POST', body: { userId: 'u1', quizId: '2026-09-02-G12', answers: ['A'] } }, res);
+    try {
+      await handler({ method: 'POST', body: { userId: 'u1', quizId: '2026-09-02-G12', answers: ['A'] } }, res);
+    } finally {
+      jest.useRealTimers();
+    }
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.body.already).toBe(true);
     expect(res.body.score).toBeNull();
