@@ -236,6 +236,124 @@ describe('GET /api/math-stars', () => {
   });
 });
 
+// ── Regression: practice points must be rounded once per student, not
+// per row (per-row rounding of every .5 practice session inflates the
+// weekly total — see the 2026-09-07 Math Stars incident where 18 quiz +
+// 9.5 + 0.5 practice points showed as 29 instead of 28). ──
+describe('GET /api/math-stars — practice points rounding (regression)', () => {
+  let handler;
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    mockFromData = {};
+    const mod = await import('../api/math-stars.js');
+    handler = mod.default;
+  });
+
+  it('quiz 18 + practice 9.5 + 0.5 returns 28, not 29', async () => {
+    mockFromData['users'] = { data: [{ id: 'u1', nickname: 'Tonu' }], error: null };
+    mockFromData['submissions'] = { data: [{ user_id: 'u1', points_earned: 18 }], error: null };
+    mockFromData['practice_submissions'] = {
+      data: [
+        { user_id: 'u1', points_earned: 9.5 },
+        { user_id: 'u1', points_earned: 0.5 },
+      ],
+      error: null,
+    };
+    const res = fakeRes();
+    await handler({ method: 'GET', query: {} }, res);
+    expect(res.body.students[0].weeklyPoints).toBe(28);
+  });
+
+  it('quiz 18 + twenty separate 0.5-point practice records returns 28', async () => {
+    mockFromData['users'] = { data: [{ id: 'u1', nickname: 'Swara4' }], error: null };
+    mockFromData['submissions'] = { data: [{ user_id: 'u1', points_earned: 18 }], error: null };
+    mockFromData['practice_submissions'] = {
+      data: Array.from({ length: 20 }, () => ({ user_id: 'u1', points_earned: 0.5 })),
+      error: null,
+    };
+    const res = fakeRes();
+    await handler({ method: 'GET', query: {} }, res);
+    expect(res.body.students[0].weeklyPoints).toBe(28);
+  });
+
+  it('handles practice points_earned returned as numeric strings', async () => {
+    mockFromData['users'] = { data: [{ id: 'u1', nickname: 'Star' }], error: null };
+    mockFromData['submissions'] = { data: [{ user_id: 'u1', points_earned: 18 }], error: null };
+    mockFromData['practice_submissions'] = {
+      data: [
+        { user_id: 'u1', points_earned: '9.5' },
+        { user_id: 'u1', points_earned: '0.5' },
+      ],
+      error: null,
+    };
+    const res = fakeRes();
+    await handler({ method: 'GET', query: {} }, res);
+    expect(res.body.students[0].weeklyPoints).toBe(28);
+  });
+
+  it('calculates each student subtotal independently', async () => {
+    mockFromData['users'] = {
+      data: [{ id: 'u1', nickname: 'Alpha' }, { id: 'u2', nickname: 'Beta' }],
+      error: null,
+    };
+    mockFromData['submissions'] = {
+      data: [{ user_id: 'u1', points_earned: 18 }, { user_id: 'u2', points_earned: 10 }],
+      error: null,
+    };
+    mockFromData['practice_submissions'] = {
+      data: [
+        { user_id: 'u1', points_earned: 9.5 },
+        { user_id: 'u1', points_earned: 0.5 },
+        { user_id: 'u2', points_earned: 0.5 },
+      ],
+      error: null,
+    };
+    const res = fakeRes();
+    await handler({ method: 'GET', query: {} }, res);
+    const byName = Object.fromEntries(res.body.students.map(s => [s.nickname, s.weeklyPoints]));
+    expect(byName['Alpha']).toBe(28);
+    expect(byName['Beta']).toBe(11); // 10 + Math.round(0.5) = 11, unaffected by Alpha's rows
+  });
+
+  it('a student earning 28 through split practice sessions ties with a student earning 28 through one session', async () => {
+    mockFromData['users'] = {
+      data: [{ id: 'u1', nickname: 'Split' }, { id: 'u2', nickname: 'Single' }],
+      error: null,
+    };
+    mockFromData['submissions'] = {
+      data: [{ user_id: 'u1', points_earned: 18 }, { user_id: 'u2', points_earned: 18 }],
+      error: null,
+    };
+    mockFromData['practice_submissions'] = {
+      data: [
+        { user_id: 'u1', points_earned: 9.5 },
+        { user_id: 'u1', points_earned: 0.5 },
+        { user_id: 'u2', points_earned: 10 },
+      ],
+      error: null,
+    };
+    const res = fakeRes();
+    await handler({ method: 'GET', query: {} }, res);
+    const split = res.body.students.find(s => s.nickname === 'Split');
+    const single = res.body.students.find(s => s.nickname === 'Single');
+    expect(split.weeklyPoints).toBe(28);
+    expect(single.weeklyPoints).toBe(28);
+    expect(split.rank).toBe(single.rank);
+  });
+
+  it('retains existing round-once display behavior for a single fractional practice total', async () => {
+    mockFromData['users'] = { data: [{ id: 'u1', nickname: 'Star' }], error: null };
+    mockFromData['submissions'] = { data: [], error: null };
+    mockFromData['practice_submissions'] = {
+      data: [{ user_id: 'u1', points_earned: 9.5 }],
+      error: null,
+    };
+    const res = fakeRes();
+    await handler({ method: 'GET', query: {} }, res);
+    expect(res.body.students[0].weeklyPoints).toBe(10);
+  });
+});
+
 // ── Math Stars Opt-in/out tests ──
 describe('POST /api/math-stars-opt', () => {
   let handler;
