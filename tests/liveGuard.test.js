@@ -12,6 +12,7 @@ const ORIGINAL_ENV = { ...process.env };
 function resetEnv() {
   delete process.env.ALLOW_LIVE_TESTS;
   delete process.env.LIVE_API_BASE_URL;
+  delete process.env.CONFIRM_PRODUCTION_LIVE_TESTS;
 }
 
 beforeEach(resetEnv);
@@ -32,7 +33,7 @@ describe('liveGuard.getLiveApiBase', () => {
     expect(() => getLiveApiBase()).toThrow(/LIVE_API_BASE_URL must be set/i);
   });
 
-  it('rejects the known production host unconditionally', () => {
+  it('rejects the known production host when ALLOW_LIVE_TESTS is the only opt-in set', () => {
     process.env.ALLOW_LIVE_TESTS = 'true';
     process.env.LIVE_API_BASE_URL = 'https://dailymathforkids-api.vercel.app';
     expect(() => getLiveApiBase()).toThrow(/production API host/i);
@@ -42,6 +43,26 @@ describe('liveGuard.getLiveApiBase', () => {
     process.env.ALLOW_LIVE_TESTS = 'true';
     process.env.LIVE_API_BASE_URL = 'https://dailymathforkids-api.vercel.app/api/';
     expect(() => getLiveApiBase()).toThrow(/production API host/i);
+  });
+
+  it('rejects the production host when the acknowledgement value is wrong', () => {
+    process.env.ALLOW_LIVE_TESTS = 'true';
+    process.env.LIVE_API_BASE_URL = 'https://dailymathforkids-api.vercel.app';
+    process.env.CONFIRM_PRODUCTION_LIVE_TESTS = 'true'; // not the hostname
+    expect(() => getLiveApiBase()).toThrow(/production API host/i);
+  });
+
+  it('rejects the production host when the acknowledgement is set but ALLOW_LIVE_TESTS is not', () => {
+    process.env.LIVE_API_BASE_URL = 'https://dailymathforkids-api.vercel.app';
+    process.env.CONFIRM_PRODUCTION_LIVE_TESTS = 'dailymathforkids-api.vercel.app';
+    expect(() => getLiveApiBase()).toThrow(/disabled by default/i);
+  });
+
+  it('allows the production host only with both ALLOW_LIVE_TESTS and the exact-hostname acknowledgement', () => {
+    process.env.ALLOW_LIVE_TESTS = 'true';
+    process.env.LIVE_API_BASE_URL = 'https://dailymathforkids-api.vercel.app';
+    process.env.CONFIRM_PRODUCTION_LIVE_TESTS = 'dailymathforkids-api.vercel.app';
+    expect(getLiveApiBase()).toBe('https://dailymathforkids-api.vercel.app');
   });
 
   it('rejects a malformed URL with a clear error rather than crashing oddly', () => {
