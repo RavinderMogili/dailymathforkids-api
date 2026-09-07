@@ -153,13 +153,23 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Could not load data. Please try again soon.' });
     }
 
-    // Sum points per user
+    // Sum quiz points per user
     const pointsMap = {};
     for (const s of (quizSubs || [])) {
       pointsMap[s.user_id] = (pointsMap[s.user_id] || 0) + (s.points_earned || 0);
     }
+
+    // Sum raw fractional practice points per user first, then round once at
+    // the end (matching /api/history and /api/prize-club) — rounding each
+    // row individually before summing systematically inflates the total,
+    // since every session's points are a whole number or end in exactly .5,
+    // and Math.round() always rounds .5 up.
+    const practiceRawMap = {};
     for (const s of (pracSubs || [])) {
-      pointsMap[s.user_id] = (pointsMap[s.user_id] || 0) + (Math.round(parseFloat(s.points_earned)) || 0);
+      practiceRawMap[s.user_id] = (practiceRawMap[s.user_id] || 0) + (parseFloat(s.points_earned) || 0);
+    }
+    for (const userId of Object.keys(practiceRawMap)) {
+      pointsMap[userId] = (pointsMap[userId] || 0) + Math.round(practiceRawMap[userId]);
     }
 
     // Build sorted list (only include students with > 0 weekly points)
