@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node api/status.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
-    "test:live": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose --testPathIgnorePatterns=/node_modules/ --testPathPatterns=tests/live"
+    "test:live": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose --testPathIgnorePatterns=/node_modules/ --testPathPatterns=tests/live",
+    "test:pg": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose --testMatch=\"**/tests/pg-integration/**/*.pgtest.js\" --testTimeout=20000"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.3.0",
-    "jest": "^30.3.0"
+    "jest": "^30.3.0",
+    "pg": "^8.23.0"
   }
 }

@@ -97,6 +97,22 @@ left join submissions   s  on s.user_id   = gm.user_id
 group by g.id, g.name, g.invite_code;
 
 -- Practice mode submissions
+-- Server-issued practice sessions — see migrations/002_practice_sessions.sql
+-- for why (server-side answer verification, replay protection, atomic
+-- daily-cap enforcement). Defined here, before practice_submissions, so the
+-- foreign key below has something to point at.
+create table if not exists practice_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  questions jsonb not null,
+  grade int,
+  topics text[],
+  difficulty text,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  consumed_at timestamptz
+);
+
 create table if not exists practice_submissions (
   id bigserial primary key,
   user_id uuid references users(id) on delete cascade,
@@ -106,7 +122,15 @@ create table if not exists practice_submissions (
   topics text[] default '{}',
   points_earned numeric(4,1) default 0,
   time_seconds int default null,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  session_id uuid references practice_sessions(id)
+);
+
+create table if not exists practice_daily_points (
+  user_id uuid not null references users(id) on delete cascade,
+  day date not null,
+  points_used numeric(4,1) not null default 0,
+  primary key (user_id, day)
 );
 
 create or replace view weekly_progress as
@@ -153,3 +177,102 @@ create table if not exists reward_milestones (
 create index if not exists idx_submissions_created_at on submissions(created_at);
 create index if not exists idx_practice_submissions_created_at on practice_submissions(created_at);
 create index if not exists idx_users_show_on_leaderboard on users(show_on_leaderboard) where show_on_leaderboard = true;
+
+create index if not exists idx_practice_sessions_user on practice_sessions(user_id, created_at desc);
+create index if not exists idx_practice_sessions_expires on practice_sessions(expires_at);
+
+-- Atomic, server-side practice-session verification + daily-cap enforcement.
+-- See migrations/002_practice_sessions.sql for the full explanation of the
+-- row-locking that makes this safe under concurrent requests.
+create or replace function submit_practice_session(
+  p_session_id uuid,
+  p_user_id uuid,
+  p_selections jsonb,
+  p_time_seconds int,
+  p_day date
+) returns jsonb as $$
+declare
+  v_session practice_sessions%rowtype;
+  v_questions jsonb;
+  v_total int;
+  v_correct int := 0;
+  v_i int;
+  v_q jsonb;
+  v_sel jsonb;
+  v_sel_choice text;
+  v_is_correct boolean;
+  v_raw_points numeric;
+  v_before numeric;
+  v_awarded numeric;
+  v_results jsonb := '[]'::jsonb;
+  v_new_submission_id bigint;
+begin
+  select * into v_session from practice_sessions
+    where id = p_session_id
+    for update;
+
+  if not found then
+    return jsonb_build_object('error', 'session_not_found');
+  end if;
+
+  if v_session.user_id <> p_user_id then
+    return jsonb_build_object('error', 'session_not_found');
+  end if;
+
+  if v_session.consumed_at is not null then
+    return jsonb_build_object('already', true);
+  end if;
+
+  if v_session.expires_at < now() then
+    return jsonb_build_object('error', 'session_expired');
+  end if;
+
+  update practice_sessions set consumed_at = now() where id = p_session_id;
+
+  v_questions := v_session.questions;
+  v_total := jsonb_array_length(v_questions);
+
+  for v_i in 0..v_total - 1 loop
+    v_q := v_questions -> v_i;
+    select s into v_sel from jsonb_array_elements(coalesce(p_selections, '[]'::jsonb)) s
+      where (s ->> 'index')::int = v_i
+      limit 1;
+    v_sel_choice := v_sel ->> 'choice';
+    v_is_correct := (v_sel_choice is not null and v_sel_choice = (v_q ->> 'answer'));
+    if v_is_correct then
+      v_correct := v_correct + 1;
+    end if;
+    v_results := v_results || jsonb_build_object('index', v_i, 'correct', v_is_correct);
+  end loop;
+
+  v_raw_points := v_correct * 0.5;
+
+  insert into practice_daily_points (user_id, day, points_used)
+    values (p_user_id, p_day, 0)
+    on conflict (user_id, day) do nothing;
+
+  select points_used into v_before from practice_daily_points
+    where user_id = p_user_id and day = p_day
+    for update;
+
+  v_awarded := least(v_raw_points, greatest(0, 10 - v_before));
+
+  update practice_daily_points set points_used = v_before + v_awarded
+    where user_id = p_user_id and day = p_day;
+
+  insert into practice_submissions (user_id, correct, total, difficulty, topics, points_earned, time_seconds, session_id)
+    values (p_user_id, v_correct, v_total, v_session.difficulty, v_session.topics, v_awarded, p_time_seconds, p_session_id)
+    returning id into v_new_submission_id;
+
+  return jsonb_build_object(
+    'already', false,
+    'correct', v_correct,
+    'total', v_total,
+    'pointsEarned', v_awarded,
+    'pointsToday', v_before + v_awarded,
+    'pointsRemaining', greatest(0, 10 - (v_before + v_awarded)),
+    'results', v_results,
+    'submissionId', v_new_submission_id
+  );
+end;
+$$ language plpgsql;
