@@ -68,10 +68,35 @@ Frontend repo: [dailymathforkids](https://github.com/RavinderMogili/dailymathfor
 - Practice sessions earn points too, with a daily cap
 
 ## Testing
-Unit tests with Jest:
+Local, fully-mocked unit tests (no network calls — safe to run anytime):
 ```bash
 npm test
 ```
+This is guaranteed safe against production by construction, not just
+convention — [`tests/no-prod-in-default-run.test.js`](tests/no-prod-in-default-run.test.js)
+regression-tests that jest's actual computed file list for `npm test` never
+includes anything under `tests/live/` or any file containing the production
+hostname. See `tests/live/INCIDENT_2026-09-06.md` and
+`tests/live/INCIDENT_2026-09-07.md` for what happens when that guarantee
+breaks (twice, so far) and why the checks now exist at three independent
+layers instead of one.
+
+Live/integration tests (`tests/live/`) make real network calls, and
+`tests/live/integration.test.js` creates real accounts wherever they're
+pointed at. They require explicit opt-in at two separate points — see
+[`tests/live/liveGuard.js`](tests/live/liveGuard.js):
+```bash
+ALLOW_LIVE_TESTS=true LIVE_API_BASE_URL=https://your-staging-deploy.vercel.app npm run test:live
+```
+Pointing `LIVE_API_BASE_URL` at the production API host is refused even with
+`ALLOW_LIVE_TESTS=true`, unless you also set a second, separate
+acknowledgement naming the exact host:
+```bash
+ALLOW_LIVE_TESTS=true LIVE_API_BASE_URL=https://dailymathforkids-api.vercel.app CONFIRM_PRODUCTION_LIVE_TESTS=dailymathforkids-api.vercel.app npm run test:live
+```
+This opt-in is checked at module load time in every `tests/live/*.test.js`
+file, so even running one of those files directly (bypassing jest's default
+test-path exclusion entirely) still refuses to contact production without it.
 
 ## Notes
 - Set `PUBLIC_API_BASE` as a GitHub Actions secret in the frontend repo so generated daily pages point to this API.

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node api/status.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose",
+    "test:live": "node --experimental-vm-modules node_modules/jest/bin/jest.js --verbose --testPathIgnorePatterns=/node_modules/ --testPathPatterns=tests/live"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

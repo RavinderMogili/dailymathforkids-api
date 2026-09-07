@@ -1,6 +1,9 @@
 import { describe, it, expect } from '@jest/globals';
+import { getLiveApiBase } from './liveGuard.js';
 
-const API = 'https://dailymathforkids-api.vercel.app';
+// Requires ALLOW_LIVE_TESTS=true and an explicit non-production
+// LIVE_API_BASE_URL — see liveGuard.js and `npm run test:live`.
+const API = getLiveApiBase();
 
 describe('Live API smoke tests', () => {
   it('GET /api/status without params returns 400', async () => {
