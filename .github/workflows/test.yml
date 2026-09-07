@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   unit-tests:
@@ -30,15 +31,28 @@ jobs:
     # These tests make real network calls against whatever LIVE_API_BASE_URL
     # points at, and integration.test.js creates real accounts there — see
     # tests/live/liveGuard.js. That guard unconditionally refuses to run
-    # against the known production host, so this job now needs a staging/
-    # preview deployment's URL configured as the LIVE_API_BASE_URL repo/
-    # environment secret before it will do anything but fail closed with a
-    # clear error. It previously ran directly against production
-    # (dailymathforkids-api.vercel.app) on every push/PR to main, relying on
-    # SUPABASE_SERVICE_ROLE for cleanup — that is exactly the behavior this
-    # change removes. Point this at a non-production deployment, or decide
-    # deliberately (and separately from this guard) to keep testing against
-    # production and accept that tradeoff explicitly.
+    # against the known production host without a separate, explicit
+    # CONFIRM_PRODUCTION_LIVE_TESTS acknowledgement (deliberately not set
+    # here), so this job needs a staging/preview deployment's URL configured
+    # as the LIVE_API_BASE_URL repo/environment secret before it will do
+    # anything but fail closed with a clear error. It previously ran
+    # directly against production (dailymathforkids-api.vercel.app) on every
+    # push/PR to main, relying on SUPABASE_SERVICE_ROLE for cleanup — that is
+    # exactly the behavior the live-test guard removes.
+    #
+    # There is currently no staging/preview API deployment, so LIVE_API_BASE_URL
+    # is not configured — pointing it at production just to make this job
+    # "pass" is exactly what the guard exists to prevent. Rather than leave
+    # this job failing (red) on every PR with no actionable fix, it's gated
+    # to manual runs only (workflow_dispatch, via the Actions tab "Run
+    # workflow" button) so it doesn't block merges. It still runs the exact
+    # same guarded command as before and will still fail closed if run
+    # without a safe target configured.
+    #
+    # Once a staging/preview deployment exists: add its URL as the
+    # LIVE_API_BASE_URL secret, then delete the `if:` line below so this job
+    # runs automatically on every push/PR again.
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
