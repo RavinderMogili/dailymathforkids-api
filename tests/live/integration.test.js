@@ -10,8 +10,12 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { getLiveApiBase } from './liveGuard.js';
 
-const API = 'https://dailymathforkids-api.vercel.app';
+// Requires ALLOW_LIVE_TESTS=true and an explicit non-production
+// LIVE_API_BASE_URL — see liveGuard.js and `npm run test:live`. This test
+// creates real accounts on whatever API base it's pointed at, hence the guard.
+const API = getLiveApiBase();
 // Keep this short (nicknames are capped at 20 chars) and avoid a run of 7+
 // consecutive digits (the nickname validator rejects anything that looks
 // like a phone number), hence the base36 encoding + truncation.

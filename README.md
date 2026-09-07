@@ -68,9 +68,18 @@ Frontend repo: [dailymathforkids](https://github.com/RavinderMogili/dailymathfor
 - Practice sessions earn points too, with a daily cap
 
 ## Testing
-Unit tests with Jest:
+Local, fully-mocked unit tests (no network calls — safe to run anytime):
 ```bash
 npm test
+```
+
+Live/integration tests (`tests/live/`) make real network calls, and
+`tests/live/integration.test.js` creates real accounts wherever they're
+pointed at. They're excluded from `npm test` and require explicit opt-in —
+see [`tests/live/liveGuard.js`](tests/live/liveGuard.js), which also
+unconditionally refuses to run against the production API host:
+```bash
+ALLOW_LIVE_TESTS=true LIVE_API_BASE_URL=https://your-staging-deploy.vercel.app npm run test:live
 ```
 
 ## Notes
