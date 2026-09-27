@@ -10,7 +10,8 @@ const mockEq = jest.fn(() => ({ single: mockSingle, like: mockLike, limit: mockL
 const mockSelect = jest.fn(() => ({ eq: mockEq, single: mockSingle }));
 const mockInsert = jest.fn(() => ({ select: mockSelect }));
 const mockUpsert = jest.fn(() => ({ select: mockSelect }));
-const mockFrom = jest.fn(() => ({ select: mockSelect, insert: mockInsert, upsert: mockUpsert }));
+const mockUpdate = jest.fn(() => ({ eq: mockEq }));
+const mockFrom = jest.fn(() => ({ select: mockSelect, insert: mockInsert, upsert: mockUpsert, update: mockUpdate }));
 
 jest.unstable_mockModule('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({ from: mockFrom })),
@@ -224,6 +225,66 @@ describe('GET /api/lookup', () => {
     const res = fakeRes();
     await handler({ method: 'GET', query: { nickname: 'nobody' } }, res);
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+});
+
+// ── Update grade tests ──
+describe('POST /api/update-grade', () => {
+  let handler;
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    const mod = await import('../api/update-grade.js');
+    handler = mod.default;
+  });
+
+  it('rejects missing userId', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { grade: '5' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/userId/i);
+  });
+
+  it('rejects missing grade', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/grade/i);
+  });
+
+  it('rejects invalid grade format', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: 'G5' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/invalid grade/i);
+  });
+
+  it('rejects out-of-range grade', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: '13' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.body.error).toMatch(/invalid grade/i);
+  });
+
+  it('rejects non-POST methods', async () => {
+    const res = fakeRes();
+    await handler({ method: 'GET' }, res);
+    expect(res.status).toHaveBeenCalledWith(405);
+  });
+
+  it('handles OPTIONS preflight', async () => {
+    const res = fakeRes();
+    await handler({ method: 'OPTIONS' }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.end).toHaveBeenCalled();
+  });
+
+  it('updates grade successfully for an existing user', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: '5' } }, res);
+    expect(mockFrom).toHaveBeenCalledWith('users');
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.grade).toBe('5');
   });
 });
 
