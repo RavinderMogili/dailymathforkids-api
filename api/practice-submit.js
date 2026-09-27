@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { checkPrizeMilestone } from './_prize-check.js';
 
-const DAILY_PRACTICE_CAP = 10;
 const REWARD_TIME_ZONE = 'America/Moncton';
 
 // Calendar-day key ('YYYY-MM-DD') in the reward timezone, so the cap resets
-// at local midnight rather than UTC midnight.
+// at local midnight rather than UTC midnight. Passed to the atomic DB
+// function rather than computed there, so this stays the single place that
+// owns the timezone rule (unchanged from before this rewrite).
 function dayKey(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: REWARD_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
@@ -20,42 +21,37 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { userId, correct, total, difficulty, topics, timeSeconds, wrongAnswers } = req.body || {};
-    if (!userId || correct == null || total == null) {
-      return res.status(400).json({ error: 'userId, correct, and total are required' });
+    const { userId, sessionId, selections, timeSeconds, wrongAnswers } = req.body || {};
+    if (!userId || !sessionId || !Array.isArray(selections)) {
+      return res.status(400).json({ error: 'userId, sessionId, and selections are required' });
     }
 
     const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
 
-    // Recompute points from correct answers server-side — never trust a
-    // client-supplied pointsEarned value — then cap at 10 pts per calendar day.
-    const rawPoints = Number(correct) * 0.5;
-    const today = dayKey();
-    const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-    const { data: recent, error: sumErr } = await sb.from('practice_submissions')
-      .select('points_earned, created_at')
-      .eq('user_id', userId)
-      .gte('created_at', since);
-    if (sumErr) return res.status(400).json({ error: sumErr.message });
-    const usedToday = (recent || [])
-      .filter(r => dayKey(new Date(r.created_at)) === today)
-      .reduce((s, r) => s + (parseFloat(r.points_earned) || 0), 0);
-    const remaining = Math.max(0, DAILY_PRACTICE_CAP - usedToday);
-    const points_earned = Math.min(rawPoints, remaining);
-
-    const { error } = await sb.from('practice_submissions').insert({
-      user_id: userId,
-      correct: correct,
-      total: total,
-      difficulty: difficulty || 'easy',
-      topics: Array.isArray(topics) ? topics : [],
-      points_earned,
-      time_seconds: (typeof timeSeconds === 'number' && timeSeconds > 0) ? timeSeconds : null,
+    // Everything that matters — which answers were actually correct, replay
+    // protection, and the 10 pt/day cap — happens atomically inside this one
+    // database call. See migrations/002_practice_sessions.sql for the
+    // function body and why each check needs to happen there (under a row
+    // lock) rather than here in application code.
+    const { data, error } = await sb.rpc('submit_practice_session', {
+      p_session_id: sessionId,
+      p_user_id: userId,
+      p_selections: selections,
+      p_time_seconds: (typeof timeSeconds === 'number' && timeSeconds > 0) ? timeSeconds : null,
+      p_day: dayKey(),
     });
 
     if (error) return res.status(400).json({ error: error.message });
+    if (data?.error === 'session_not_found') return res.status(404).json({ error: 'practice session not found' });
+    if (data?.error === 'session_expired') return res.status(410).json({ error: 'practice session expired' });
+    if (data?.already) {
+      return res.status(200).json({ correct: null, total: null, pointsEarned: 0, already: true });
+    }
 
-    // Save wrong answers to mistakes table
+    // Save wrong answers to mistakes table (best-effort, non-blocking — same
+    // as before this rewrite). These are for the review feature only; they
+    // are never used to compute correctness or points, which come entirely
+    // from the RPC result above.
     if (Array.isArray(wrongAnswers) && wrongAnswers.length > 0) {
       const mistakeRows = wrongAnswers.slice(0, 20).map(m => ({
         user_id: userId,
@@ -73,14 +69,16 @@ export default async function handler(req, res) {
       sb.from('mistakes').insert(mistakeRows).then(() => {}).catch(() => {});
     }
 
-    // Check prize milestone (awaited: un-awaited work may never run on serverless)
     await checkPrizeMilestone(sb, userId).catch(e => console.error('prize check failed:', e.message));
 
     return res.status(200).json({
-      ok: true,
-      pointsEarned: points_earned,
-      pointsToday: usedToday + points_earned,
-      pointsRemaining: Math.max(0, remaining - points_earned),
+      correct: data.correct,
+      total: data.total,
+      pointsEarned: data.pointsEarned,
+      pointsToday: data.pointsToday,
+      pointsRemaining: data.pointsRemaining,
+      results: data.results,
+      already: false,
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
