@@ -133,6 +133,17 @@ create table if not exists practice_daily_points (
   primary key (user_id, day)
 );
 
+-- Server-side exposure tracking (avoid repeating pool-sourced questions a
+-- user has already seen) — see migrations/003_practice_seen_questions.sql.
+create table if not exists practice_seen_questions (
+  user_id uuid not null references users(id) on delete cascade,
+  source_id text not null,
+  last_seen_at timestamptz not null default now(),
+  primary key (user_id, source_id)
+);
+
+create index if not exists idx_practice_seen_questions_user on practice_seen_questions(user_id);
+
 create or replace view weekly_progress as
 select
   user_id,

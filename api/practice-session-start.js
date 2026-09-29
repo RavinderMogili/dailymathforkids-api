@@ -21,14 +21,28 @@ export default async function handler(req, res) {
     const diff = VALID_DIFFICULTIES.includes(difficulty) ? difficulty : 'easy';
     const qCount = Math.min(Math.max(parseInt(count, 10) || 10, 1), MAX_COUNT);
 
+    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
+
+    // Exposure tracking (server-side, per-user — see
+    // migrations/003_practice_seen_questions.sql): look up which pool
+    // questions this user has already been shown, so generation can prefer
+    // variety. Best-effort — a lookup failure should never block practice.
+    let seenSourceIds = [];
+    const { data: seenRows, error: seenError } = await sb
+      .from('practice_seen_questions')
+      .select('source_id')
+      .eq('user_id', userId);
+    if (!seenError && Array.isArray(seenRows)) {
+      seenSourceIds = seenRows.map(r => r.source_id);
+    }
+
     // Server-side generation is the actual security boundary here — the
     // client never gets a say in what "questions" means for this session.
-    const questions = generatePracticeQuestions(gradeNum, topicList, diff, qCount);
+    const questions = generatePracticeQuestions(gradeNum, topicList, diff, qCount, seenSourceIds);
     if (!Array.isArray(questions) || questions.length === 0) {
       return res.status(500).json({ error: 'failed to generate practice questions' });
     }
 
-    const sb = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE);
     const expiresAt = new Date(Date.now() + SESSION_TTL_MINUTES * 60 * 1000).toISOString();
 
     const { data, error } = await sb.from('practice_sessions').insert({
@@ -41,6 +55,21 @@ export default async function handler(req, res) {
     }).select('id').single();
 
     if (error) return res.status(400).json({ error: error.message });
+
+    // Record which pool questions this user was just shown, so the next
+    // session-start call for this user prefers different ones. Best-effort
+    // and fire-and-forget in spirit (awaited for test determinism, but its
+    // failure must never fail an otherwise-successful session-start) — a
+    // dropped write here just means slightly worse variety next time, not a
+    // broken practice round.
+    const newlySeenIds = questions.map(q => q._sourceId).filter(Boolean);
+    if (newlySeenIds.length > 0) {
+      const rows = newlySeenIds.map(source_id => ({ user_id: userId, source_id, last_seen_at: new Date().toISOString() }));
+      const { error: seenWriteError } = await sb
+        .from('practice_seen_questions')
+        .upsert(rows, { onConflict: 'user_id,source_id' });
+      if (seenWriteError) console.error('practice_seen_questions upsert failed:', seenWriteError.message);
+    }
 
     // The answer key travels with the question set here (same as every
     // practice question source already worked before this change — see

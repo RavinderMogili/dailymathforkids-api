@@ -12,16 +12,27 @@ import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
 const mockRpc = jest.fn();
 const mockSingle = jest.fn();
-const mockSelect = jest.fn(() => ({ single: mockSingle }));
-const mockInsert = jest.fn(() => ({ select: mockSelect }));
-const mockFrom = jest.fn(() => ({ insert: mockInsert }));
+const mockSelectForInsert = jest.fn(() => ({ single: mockSingle }));
+const mockInsert = jest.fn(() => ({ select: mockSelectForInsert }));
+// practice_seen_questions lookup: .from(...).select(...).eq(...) -> {data, error}
+const mockSeenEq = jest.fn(() => Promise.resolve({ data: [], error: null }));
+const mockSeenSelect = jest.fn(() => ({ eq: mockSeenEq }));
+const mockUpsert = jest.fn(() => Promise.resolve({ error: null }));
+// Same `.select` name is used for two different chains (insert->select->single,
+// and plain select->eq); disambiguate by whether `.single` or `.eq` is used next —
+// simplest is to give `select` both shapes on the returned object.
+const mockFrom = jest.fn(() => ({
+  insert: mockInsert,
+  select: mockSeenSelect,
+  upsert: mockUpsert,
+}));
 
 jest.unstable_mockModule('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({ from: mockFrom, rpc: mockRpc })),
 }));
 
 jest.unstable_mockModule('../api/_practice-generators.js', () => ({
-  generatePracticeQuestions: jest.fn((grade, topics, difficulty, count) =>
+  generatePracticeQuestions: jest.fn((grade, topics, difficulty, count, seenSourceIds) =>
     Array.from({ length: count }, (_, i) => ({
       question: `Q${i} for grade ${grade}`,
       questionFr: '',
@@ -80,6 +91,44 @@ describe('POST /api/practice-session-start', () => {
     expect(insertedRow.questions).toHaveLength(3);
     expect(insertedRow.questions[0].answer).toBeDefined(); // server's copy includes the key
     expect(insertedRow.expires_at).toBeDefined();
+  });
+
+  it('looks up this user\'s previously-seen pool questions before generating', async () => {
+    mockSeenEq.mockResolvedValueOnce({ data: [{ source_id: 'gsm8k-train-01077' }], error: null });
+    const { generatePracticeQuestions } = await import('../api/_practice-generators.js');
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: 4, topics: ['Word Problems'], count: 5 } }, res);
+    expect(mockFrom).toHaveBeenCalledWith('practice_seen_questions');
+    expect(generatePracticeQuestions).toHaveBeenCalledWith(
+      4, ['Word Problems'], 'easy', 5, ['gsm8k-train-01077']
+    );
+  });
+
+  it('a failed seen-questions lookup does not block session creation (best-effort)', async () => {
+    mockSeenEq.mockResolvedValueOnce({ data: null, error: { message: 'db unreachable' } });
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: 4, count: 3 } }, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it('records newly-shown pool questions (with _sourceId) via upsert after creating the session', async () => {
+    const { generatePracticeQuestions } = await import('../api/_practice-generators.js');
+    generatePracticeQuestions.mockReturnValueOnce([
+      { question: 'Q', questionFr: '', answer: '1', choices: ['1', '2'], hint: 'h', steps: ['s'], topic: 'Word Problems', _source: 'gsm8k', _sourceId: 'gsm8k-train-00001' },
+      { question: 'Q2', questionFr: '', answer: '2', choices: ['1', '2'], hint: 'h', steps: ['s'], topic: 'Word Problems', _source: 'algorithmic', _sourceId: null },
+    ]);
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: 4, topics: ['Word Problems'], count: 2 } }, res);
+    expect(mockUpsert).toHaveBeenCalledWith(
+      [{ user_id: 'u1', source_id: 'gsm8k-train-00001', last_seen_at: expect.any(String) }],
+      { onConflict: 'user_id,source_id' }
+    );
+  });
+
+  it('does not call upsert when no generated question has a _sourceId', async () => {
+    const res = fakeRes();
+    await handler({ method: 'POST', body: { userId: 'u1', grade: 4, count: 2 } }, res);
+    expect(mockUpsert).not.toHaveBeenCalled();
   });
 });
 

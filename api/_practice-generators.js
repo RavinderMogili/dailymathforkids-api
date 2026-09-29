@@ -1074,6 +1074,21 @@ function shuffleArr(arr) {
   return arr;
 }
 
+// ── Server-side exposure tracking ─────────────────────────────────────
+// Prefer pool questions this user hasn't seen recently (per
+// practice_seen_questions, keyed by user_id — see
+// migrations/003_practice_seen_questions.sql), falling back to the full
+// list if that would leave too few to fill the request. Mirrors the old
+// client-side preferUnseen()/dmk_extpool_seen_ids behavior in
+// scripts/practice-engine.js, but server-side and per-user instead of
+// per-browser, so it actually applies to real, points-eligible sessions.
+function preferUnseen(list, seenSourceIds, minNeeded) {
+  if (!seenSourceIds || seenSourceIds.length === 0) return list;
+  const seen = new Set(seenSourceIds);
+  const unseen = list.filter(q => !q._sourceId || !seen.has(q._sourceId));
+  return unseen.length >= minNeeded ? unseen : list;
+}
+
 /**
  * Server-side equivalent of the frontend's generateQuiz() — same blending
  * rules (100% pool for "Word Problems"-only, ~40% pool blend otherwise,
@@ -1081,13 +1096,17 @@ function shuffleArr(arr) {
  * actually gets scored: practice-session-start.js stores its output
  * (including answers) in practice_sessions, and practice-submit.js verifies
  * submissions against that stored copy, not anything the client claims.
+ *
+ * `seenSourceIds` (optional): _sourceId values this user has already been
+ * shown recently (looked up by the caller from practice_seen_questions).
+ * Used only to prefer variety — never blocks a session from being built.
  */
-export function generatePracticeQuestions(grade, topics, difficulty, count) {
+export function generatePracticeQuestions(grade, topics, difficulty, count, seenSourceIds = []) {
   const questions = [];
   const isWordProblems = topics.length === 1 && topics[0] === 'Word Problems';
 
   if (isWordProblems) {
-    const poolQs = getServerPoolQuestions(grade, []);
+    const poolQs = preferUnseen(getServerPoolQuestions(grade, []), seenSourceIds, count);
     const usedPool = shuffleArr([...poolQs]).slice(0, count);
     usedPool.forEach(pq => questions.push(makeServerPoolQuestion(pq)));
     const remaining = count - questions.length;
@@ -1099,7 +1118,7 @@ export function generatePracticeQuestions(grade, topics, difficulty, count) {
   }
 
   const nonWordTopics = topics.filter(t => t !== 'Word Problems');
-  const poolQs = getServerPoolQuestions(grade, nonWordTopics);
+  const poolQs = preferUnseen(getServerPoolQuestions(grade, nonWordTopics), seenSourceIds, 1);
   const poolCount = Math.min(Math.floor(count * 0.4), poolQs.length);
   const usedPool = shuffleArr([...poolQs]).slice(0, poolCount);
   usedPool.forEach(pq => questions.push(makeServerPoolQuestion(pq)));
