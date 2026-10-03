@@ -1040,6 +1040,24 @@ function isExtendedPoolEnabled() {
   return process.env.EXTENDED_POOL_ENABLED === 'true';
 }
 
+const SOURCE_TOPIC_TO_TOPICS = {
+  'Word Problems (general)': ['Word Problems'],
+  'Fractions': ['Fractions'],
+  'Money': ['Money'],
+  'Multiplication & Division': ['Multiplication', 'Division', 'Arithmetic', 'Operations'],
+  'Ratios & Rates': ['Ratios', 'Proportions', 'Rates', 'Proportional'],
+  'Percentages': ['Percent', 'Percentage'],
+  'Geometry': ['Geometry', 'Area', 'Surface Area', 'Volume'],
+  'Measurement': ['Measurement', 'Metric Conversions'],
+  'Time': ['Time', 'Measurement'],
+  'Counting & Comparison': ['Counting', 'Comparison'],
+};
+
+function getServerPoolQuestionTopics(q) {
+  const mapped = SOURCE_TOPIC_TO_TOPICS[q._sourceTopic] || [];
+  return [q.topic || 'Word Problems', ...mapped];
+}
+
 function getServerPoolQuestions(grade, topics, difficulty = null) {
   let pool = HAND_CURATED_POOL.slice();
   if (isExtendedPoolEnabled()) pool = pool.concat(EXTENDED_POOL);
@@ -1050,10 +1068,14 @@ function getServerPoolQuestions(grade, topics, difficulty = null) {
       return false;
     }
     if (topics.length === 0) return true;
-    return topics.some(t =>
-      t.toLowerCase().includes((q.topic || '').toLowerCase().split(' ')[0] || '') ||
-      (q.topic || '').toLowerCase().includes(t.toLowerCase().split(' ')[0] || '')
-    );
+    const poolTopics = getServerPoolQuestionTopics(q);
+    return topics.some(t => {
+      const topicWords = t.toLowerCase().split(' ')[0] || '';
+      return poolTopics.some(pt =>
+        t.toLowerCase().includes(pt.toLowerCase()) ||
+        pt.toLowerCase().includes(topicWords)
+      );
+    });
   });
 }
 
