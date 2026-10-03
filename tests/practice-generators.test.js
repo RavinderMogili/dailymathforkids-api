@@ -28,6 +28,11 @@ const POOL_FIXTURE = JSON.stringify([
     choices: ['2', '4', '6', '8'], answer: 4, hint: 'h', steps: ['s'],
     _source: 'gsm8k', _sourceId: 'gsm8k-g6r-1', _sourceTopic: 'Ratios & Rates', _difficulty: 'easy',
   },
+  {
+    grade: 4, topic: 'Word Problems', question: 'grade 4 ratio problem', questionFr: '',
+    choices: ['1', '2', '3', '4'], answer: 2, hint: 'h', steps: ['s'],
+    _source: 'gsm8k', _sourceId: 'gsm8k-g4r-1', _sourceTopic: 'Ratios & Rates', _difficulty: 'easy',
+  },
 ]);
 
 const EMPTY_POOL = JSON.stringify([]);
@@ -51,9 +56,8 @@ describe('generatePracticeQuestions pool selection', () => {
     const { generatePracticeQuestions } = await import('../api/_practice-generators.js');
     const questions = generatePracticeQuestions(4, ['Word Problems'], 'easy', 1);
     expect(questions.length).toBe(1);
-    expect(questions[0]._sourceId).toBe('gsm8k-easy-1');
+    expect(['gsm8k-easy-1', 'gsm8k-g4r-1']).toContain(questions[0]._sourceId);
     expect(questions[0]._difficulty).toBe('easy');
-    expect(questions[0]._sourceTopic).toBe('Money');
   });
 
   it('filters Word Problems by selected difficulty (hard)', async () => {
@@ -92,5 +96,13 @@ describe('generatePracticeQuestions pool selection', () => {
     // Use count=5 so the ~40% pool mix rounds up to at least one pool question.
     const questions = generatePracticeQuestions(6, ['Ratios & Proportions'], 'easy', 5);
     expect(questions.some(q => q._sourceId === 'gsm8k-g6r-1')).toBe(true);
+  });
+
+  it('respects grade boundaries: grade 4 ratios question stays under Word Problems only', async () => {
+    const { generatePracticeQuestions } = await import('../api/_practice-generators.js');
+    // Grade 4 has no "Ratios & Proportions" topic, so the grade-4 ratio question
+    // should not surface under that topic even though _sourceTopic is Ratios & Rates.
+    const questions = generatePracticeQuestions(4, ['Ratios & Proportions'], 'easy', 5);
+    expect(questions.some(q => q._sourceId === 'gsm8k-g4r-1')).toBe(false);
   });
 });
