@@ -1040,16 +1040,21 @@ function isExtendedPoolEnabled() {
   return process.env.EXTENDED_POOL_ENABLED === 'true';
 }
 
-function getServerPoolQuestions(grade, topics) {
+function getServerPoolQuestions(grade, topics, difficulty = null) {
   let pool = HAND_CURATED_POOL.slice();
   if (isExtendedPoolEnabled()) pool = pool.concat(EXTENDED_POOL);
-  return pool.filter(q =>
-    q.grade === grade &&
-    (topics.length === 0 || topics.some(t =>
+  return pool.filter(q => {
+    if (q.grade !== grade) return false;
+    if (difficulty && q._difficulty &&
+        String(q._difficulty).toLowerCase() !== String(difficulty).toLowerCase()) {
+      return false;
+    }
+    if (topics.length === 0) return true;
+    return topics.some(t =>
       t.toLowerCase().includes((q.topic || '').toLowerCase().split(' ')[0] || '') ||
       (q.topic || '').toLowerCase().includes(t.toLowerCase().split(' ')[0] || '')
-    ))
-  );
+    );
+  });
 }
 
 function makeServerPoolQuestion(pq) {
@@ -1063,6 +1068,8 @@ function makeServerPoolQuestion(pq) {
     topic: pq.topic || 'Word Problem',
     _source: pq._source || 'chatgpt',
     _sourceId: pq._sourceId || null,
+    _difficulty: pq._difficulty || null,
+    _sourceTopic: pq._sourceTopic || null,
   };
 }
 
@@ -1106,7 +1113,7 @@ export function generatePracticeQuestions(grade, topics, difficulty, count, seen
   const isWordProblems = topics.length === 1 && topics[0] === 'Word Problems';
 
   if (isWordProblems) {
-    const poolQs = preferUnseen(getServerPoolQuestions(grade, []), seenSourceIds, count);
+    const poolQs = preferUnseen(getServerPoolQuestions(grade, [], difficulty), seenSourceIds, count);
     const usedPool = shuffleArr([...poolQs]).slice(0, count);
     usedPool.forEach(pq => questions.push(makeServerPoolQuestion(pq)));
     const remaining = count - questions.length;
@@ -1118,7 +1125,7 @@ export function generatePracticeQuestions(grade, topics, difficulty, count, seen
   }
 
   const nonWordTopics = topics.filter(t => t !== 'Word Problems');
-  const poolQs = preferUnseen(getServerPoolQuestions(grade, nonWordTopics), seenSourceIds, 1);
+  const poolQs = preferUnseen(getServerPoolQuestions(grade, nonWordTopics, difficulty), seenSourceIds, 1);
   const poolCount = Math.min(Math.floor(count * 0.4), poolQs.length);
   const usedPool = shuffleArr([...poolQs]).slice(0, poolCount);
   usedPool.forEach(pq => questions.push(makeServerPoolQuestion(pq)));
